@@ -35,7 +35,7 @@ local Tooltips = {}
 local TransparencyCache = {}
 local ActiveTabTweens = setmetatable({}, { __mode = "k" })
 
-local BaseURL = "https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/"
+local BaseURL = "https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/"
 local CustomImageManager = {}
 local CustomImageManagerAssets = {
     TransparencyTexture = {
@@ -2023,7 +2023,7 @@ type IconModule = {
     GetAsset: (Name: string) -> Icon?,
 }
 
-local LUCIDE_SOURCE_URL = "https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/LucideIcons.lua"
+local LUCIDE_SOURCE_URL = "https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/LucideIcons.lua"
 local LUCIDE_CACHE_PATH = "Astral/cache/LucideIcons.lua"
 
 local IconsLoaded = false

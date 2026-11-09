@@ -161,3 +161,15 @@ When working on `Astral.lua`, observe these strict rules:
      - The root cause analysis and rationale behind the changes.
      - Exact resolutions and visual/functional impact.
      - Any newly established design guidelines or architectural patterns.
+
+---
+
+## 7. Change Log & Maintenance History
+
+### 2026-11-10: Development Fork Refactoring (`inCythe/AstralDev`)
+- **Rationale / Root Cause:** The codebase was branched into a dedicated development repository (`inCythe/AstralDev`) for active iteration and testing. Hardcoded raw GitHub URLs previously pointed to the upstream production repository (`inCythe/Astral`), causing development builds to load production assets and modules rather than dev versions.
+- **Resolutions:**
+  - `Astral.lua`: Updated `BaseURL` and `LUCIDE_SOURCE_URL` to point to `inCythe/AstralDev/refs/heads/main/`. Built-in asset paths (`TransparencyTexture`, `SaturationMap`, `LoadingIcon`, `CheckIcon`, `AstralIcon`, `DiscordIcon`) automatically resolve to the dev repository.
+  - `Example.lua`: Updated `HttpGet` fallback loaders for `Library`, `SaveManager`, and `ThemeManager` to load from `inCythe/AstralDev/refs/heads/main/`.
+  - `Docs.md`: Updated all documentation loadstring and example snippets to reference `inCythe/AstralDev`.
+- **Impact:** Testing and running the library now pulls directly from the `AstralDev` repository, isolating development testing from production.

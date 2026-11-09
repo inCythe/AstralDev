@@ -52,7 +52,7 @@ Getting Started with Astral
 The library is loaded via `loadstring` or by requiring the module directly:
 
 ```lua
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/Astral.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/Astral.lua"))()
 ```
 
 Once loaded, `Library` is also stored in `getgenv().Library` for global access. On re-execution, any existing Astral `ScreenGui` is automatically destroyed or cleanly unloaded before the new instance is created.
@@ -74,7 +74,7 @@ Library.Toggles.MyToggle:SetState(true)
 A comprehensive example demonstrating all UI features, rich text formatting, and advanced functionality is available at `Example.lua` in the repository:
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/Example.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/Example.lua"))()
 ```
 
 The example includes:
@@ -98,7 +98,7 @@ How to load Astral, its addons, and required dependencies.
 ### Loading the Library
 
 ```lua
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/Astral.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/Astral.lua"))()
 ```
 
 `Library` is also stored in `getgenv().Library` for global access. On re-execution, any existing Astral `ScreenGui` is automatically destroyed or cleanly unloaded before the new instance is created.
@@ -108,8 +108,8 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCyt
 ### Loading Addons
 
 ```lua
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/SaveManager.lua"))()
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/SaveManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/ThemeManager.lua"))()
 
 SaveManager:SetLibrary(Library)
 ThemeManager:SetLibrary(Library)
@@ -2961,7 +2961,7 @@ Automatic configuration persistence for Toggles, Sliders, Dropdowns, and more.
 SaveManager provides automatic configuration persistence: it always keeps an autosave watcher running in the background, so there's no separate "enable autosave" step or debounce configuration -- once you call `BuildConfigSection`, saving and loading are fully hands-off.
 
 ```lua
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/SaveManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/SaveManager.lua"))()
 
 SaveManager:SetLibrary(Library)
 
@@ -3095,7 +3095,7 @@ SaveManager automatically handles the following element types:
 #### Example Usage
 
 ```lua
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/SaveManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/SaveManager.lua"))()
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 
@@ -3125,7 +3125,7 @@ Built-in and custom theme management for the Astral color scheme.
 ThemeManager provides comprehensive theme management with 18 built-in themes and support for custom theme creation, saving, and loading.
 
 ```lua
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/ThemeManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/ThemeManager.lua"))()
 
 ThemeManager:SetLibrary(Library)
 
@@ -3282,7 +3282,7 @@ Themes control the following color fields:
 
 ```lua
 -- Basic setup
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/ThemeManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/ThemeManager.lua"))()
 ThemeManager:SetLibrary(Library)
 
 -- Add theme manager to a tab
