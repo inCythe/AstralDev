@@ -1,0 +1,19 @@
+# Astral library local artifacts
+# ---------------------------------------------------------------------------
+
+# Local HTTP server used to sync files into Studio (stopped after use)
+*.out
+*.pid
+
+# Temporary screenshots / crops taken during visual QA
+*.png
+!*.lua
+!*.md
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Local-only notes, kept on disk but out of the repo
+AGENTS.md
