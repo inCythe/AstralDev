@@ -6893,24 +6893,27 @@ do
             Gear.Size = UDim2.fromOffset(21, 21)
             Gear.ZIndex = (ParentObj.TopRow and ParentObj.TopRow.ZIndex or 1) + 2
             Gear.Parent = ParentObj.TopRow
+        elseif ElementType == "Toggle" and ParentObj.ReserveRight and ParentObj.Holder then
+            --// Very right edge of the row; the switch / checkbox and any addons move left of it. \\--
+            ParentObj:ReserveRight(24)
+            Gear.AnchorPoint = Vector2.new(1, 0.5)
+            Gear.Position = UDim2.fromScale(1, 0.5)
+            Gear.Size = UDim2.fromOffset(18, 18)
+            Gear.Parent = ParentObj.Holder
         elseif ElementType == "Stepper" and ParentObj.Controls and ParentObj.LabelBlock then
-            --// Just left of the +/- controls, vertically centered. \\--
-            local ControlsWidth = ParentObj.ControlsWidth or 94
-            Gear.AnchorPoint = Vector2.new(1, 0.5)
-            Gear.Position = UDim2.new(1, -(ControlsWidth + 6), 0.5, 0)
-            Gear.Size = UDim2.fromOffset(21, 21)
-            Gear.ZIndex = (ParentObj.Holder.ZIndex or 1) + 3
-            Gear.Parent = ParentObj.Holder
+            --// Very right edge; ReserveRight moves the +/- controls left of it. \\--
             ParentObj:ReserveRight(27)
+            Gear.AnchorPoint = Vector2.new(1, 0.5)
+            Gear.Position = UDim2.fromScale(1, 0.5)
+            Gear.Size = UDim2.fromOffset(21, 21)
+            Gear.Parent = ParentObj.Holder
         elseif ElementType == "Slider" and ParentObj.Holder then
-            --// Top-right of the slider, left of the inline value box when there is one. \\--
-            local ValueBoxOffset = ParentObj.InlineValueBox and 64 or 0
-            Gear.AnchorPoint = Vector2.new(1, 0.5)
-            Gear.Position = UDim2.new(1, -ValueBoxOffset, 0, (ParentObj.TopRowHeight or 14) / 2)
-            Gear.Size = UDim2.fromOffset(21, 21)
-            Gear.ZIndex = (ParentObj.TextLabel and ParentObj.TextLabel.ZIndex or ParentObj.Holder.ZIndex or 1) + 3
-            Gear.Parent = ParentObj.Holder
+            --// Very right edge of the slider's top row; the inline value box moves left of it. \\--
             ParentObj:ReserveRight(27)
+            Gear.AnchorPoint = Vector2.new(1, 0.5)
+            Gear.Position = UDim2.new(1, 0, 0, (ParentObj.TopRowHeight or 14) / 2)
+            Gear.Size = UDim2.fromOffset(21, 21)
+            Gear.Parent = ParentObj.Holder
         else
             local Label = ParentObj.TextLabel
             if not Label and ParentObj.Holder then
@@ -6930,6 +6933,16 @@ do
         end
 
         local ParentHolder = ParentObj.Holder or ParentObj.Base or (ParentObj.TextLabel and ParentObj.TextLabel.Parent)
+        --// The gear (and its icon, created before the gear had a parent) must sit above the row:
+        --// ZIndexBehavior is Global, so an icon left at ZIndex 1 is hidden behind every other element. \\--
+        do
+            local BaseZ = Gear.Parent and Gear.Parent.ZIndex or Library.BaseZIndex
+            if Gear.ZIndex <= BaseZ then
+                Gear.ZIndex = BaseZ + 2
+            end
+            Icon.ZIndex = Gear.ZIndex + 1
+        end
+
         --// Share the owner's LayoutOrder. Section children default to 0 and sort by creation order, so
         --// the panel lands directly under its owner (an order of +1 would sink it to the section's end). \\--
         local TargetOrder = 0
@@ -7403,6 +7416,7 @@ do
         Label.Container = Container
         if not Data.DoesWrap then
             setmetatable(Label, BaseAddons)
+            Label.AddSettings = Funcs.AddSettings
         end
 
         Label.Holder = TextLabel
@@ -8097,6 +8111,7 @@ do
         local DisplayImpl: (Toggle: any) -> ()
 
         local TextOffset, TextRightPad = 0, 0
+        local ReservedRight = 0 --// space kept free on the right (settings gear)
 
         --// Title on top, subtext tight underneath (wrapping onto more lines when needed). \\--
         local function UpdateRowHeight()
@@ -8122,7 +8137,7 @@ do
 
         local function ApplyVariantLayout()
             local Base = Toggle.Variant == "Checkbox" and 26 or 0
-            TextRightPad = Toggle.Variant == "Checkbox" and 0 or 40
+            TextRightPad = (Toggle.Variant == "Checkbox" and 0 or 40) + ReservedRight
             TextOffset = Base + DecorOffset
 
             if IconHolder then
@@ -8171,7 +8186,21 @@ do
                 Visual, DisplayImpl = BuildSwitchVisual(Button)
             end
 
+            if Visual and Variant ~= "Checkbox" and ReservedRight > 0 then
+                Visual.Position = UDim2.new(1, -ReservedRight, 0.5, 0)
+            end
+
             Toggle:Display()
+        end
+
+        --// Keeps the right edge free for the settings gear: text shrinks, switch moves left. \\--
+        function Toggle:ReserveRight(Amount: number)
+            ReservedRight += Amount
+            ApplyVariantLayout()
+
+            if Visual and Toggle.Variant ~= "Checkbox" then
+                Visual.Position = UDim2.new(1, -ReservedRight, 0.5, 0)
+            end
         end
 
         function Toggle:UpdateColors()
@@ -8280,6 +8309,9 @@ do
 
         Toggle.Container = Container
         setmetatable(Toggle, BaseAddons)
+
+        --// Direct field, so Toggle:AddSettings() doesn't depend on the BaseAddons.__index lookup. \\--
+        Toggle.AddSettings = Funcs.AddSettings
 
         Toggle.Holder = Button
         Toggle.Section = Section
@@ -9238,6 +9270,12 @@ do
 
         --// Shrinks the label so its text doesn't run under the settings gear. \\--
         function Slider:ReserveRight(Amount: number)
+            Slider.ReservedRight = (Slider.ReservedRight or 0) + Amount
+
+            if InlineValueBox then
+                InlineValueBox.Position = UDim2.new(1, -Slider.ReservedRight, 0, TopRowHeight / 2)
+            end
+
             if SliderLabel and SliderLabel.Parent then
                 local Size = SliderLabel.Size
                 SliderLabel.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
@@ -10008,8 +10046,11 @@ do
 
         --// Shrinks the label area so the settings gear has room without overlapping the controls. \\--
         function Stepper:ReserveRight(Amount: number)
+            Stepper.ReservedRight = (Stepper.ReservedRight or 0) + Amount
+
             local Size = LabelBlock.Size
             LabelBlock.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
+            Controls.Position = UDim2.new(1, -Stepper.ReservedRight, 0.5, 0)
         end
 
         table.insert(Section.Elements, Stepper)
@@ -15021,13 +15062,24 @@ function Library:CreateWindow(WindowInfo)
             })
         )
 
+        --// The top bar fill is made of pieces that never overlap, so a semi-transparent window shows one even
+        --// colour: a clipped cap whose top corners are rounded, and a flat body underneath it. \\--
+        local TopCap = New("Frame", {
+            Name = "TopBackgroundCap",
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            Position = UDim2.fromScale(0, 0),
+            Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius),
+            ZIndex = MainFrame.ZIndex,
+            Parent = MainFrame,
+        })
         local TopBackground = New("Frame", {
             Name = "TopBackground",
             BackgroundColor3 = "BackgroundColor",
             Position = UDim2.fromScale(0, 0),
-            Size = UDim2.new(1, 0, 0, 48),
+            Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius * 2),
             ZIndex = MainFrame.ZIndex,
-            Parent = MainFrame,
+            Parent = TopCap,
         })
         table.insert(
             Library.Corners,
@@ -15040,13 +15092,20 @@ function Library:CreateWindow(WindowInfo)
             Name = "TopFlatBottom",
             BackgroundColor3 = "BackgroundColor",
             BorderSizePixel = 0,
-            Position = UDim2.new(0, 0, 0, 48 - WindowInfo.CornerRadius),
-            Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius),
+            Position = UDim2.fromOffset(0, WindowInfo.CornerRadius),
+            Size = UDim2.new(1, 0, 0, 48 - WindowInfo.CornerRadius),
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
         Library.StyleTargets[TopBackground] = "panel"
         Library.StyleTargets[TopFlatBottom] = "panel"
+
+        Library.LayoutTopBar = function(Radius: number)
+            TopCap.Size = UDim2.new(1, 0, 0, Radius)
+            TopBackground.Size = UDim2.new(1, 0, 0, Radius * 2)
+            TopFlatBottom.Position = UDim2.fromOffset(0, Radius)
+            TopFlatBottom.Size = UDim2.new(1, 0, 0, 48 - Radius)
+        end
 
         local TopBar = New("Frame", {
             Name = "TopBar",
@@ -15467,7 +15526,6 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
         Library.StyleTargets[Sidebar] = "panel"
-        Library:AddOutline(Sidebar)
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -16021,6 +16079,10 @@ function Library:CreateWindow(WindowInfo)
         Library.CornerRadius = Radius
         WindowInfo.CornerRadius = Radius
 
+        if Library.LayoutTopBar then
+            Library.LayoutTopBar(Radius)
+        end
+
         ResizeButton.Position = UDim2.new(1, -Radius / 4, 0, 0)
         BottomBackground.Size = UDim2.new(1, 0, 0, math.max(20, Radius * 2))
 
@@ -16052,14 +16114,14 @@ function Library:CreateWindow(WindowInfo)
 
                 Button.IconSlot.AnchorPoint = Vector2.new(0.5, 0.5)
                 Button.IconSlot.Position = UDim2.fromScale(0.5, 0.5)
-                Button.IconSlot.Size = UDim2.new(0, 18, 1, 0)
+                Button.IconSlot.Size = UDim2.new(0, 16, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
                 Button.Padding.PaddingLeft = UDim.new(0, 4)
             else
 
                 Button.IconSlot.AnchorPoint = Vector2.new(0, 0.5)
                 Button.IconSlot.Position = UDim2.new(0, 0, 0.5, 0)
-                Button.IconSlot.Size = UDim2.new(0, 18, 1, 0)
+                Button.IconSlot.Size = UDim2.new(0, 16, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
                 Button.Padding.PaddingLeft = UDim.new(0, 20)
             end
@@ -16460,7 +16522,7 @@ function Library:CreateWindow(WindowInfo)
                 AnchorPoint = IsCompact and Vector2.new(0.5, 0.5) or Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
                 Position = IsCompact and UDim2.fromScale(0.5, 0.5) or UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.new(0, 18, 1, 0),
+                Size = UDim2.new(0, 16, 1, 0),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
                 Parent = TabButton,
             })
@@ -16475,8 +16537,7 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = 0.5,
                     Position = UDim2.fromScale(0.5, 0.5),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromScale(1, 1),
-                    SizeConstraint = Enum.SizeConstraint.RelativeYY,
+                    Size = UDim2.fromOffset(16, 16),
                     Parent = IconSlot,
                 })
             end
@@ -16487,7 +16548,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
                 Text = Name:sub(1, 1):upper(),
-                TextSize = 14,
+                TextSize = 13,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
                 Parent = IconSlot,
@@ -16496,10 +16557,10 @@ function Library:CreateWindow(WindowInfo)
             TabLabel = New("TextLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0, 26, 0.5, 0),
-                Size = UDim2.new(1, -26, 0, 18),
+                Position = UDim2.new(0, 24, 0.5, 0),
+                Size = UDim2.new(1, -24, 0, 18),
                 Text = Name,
-                TextSize = 14,
+                TextSize = 13,
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextWrapped = true,
@@ -17911,7 +17972,7 @@ function Library:CreateWindow(WindowInfo)
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.new(0, 18, 1, 0),
+                Size = UDim2.new(0, 16, 1, 0),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
                 Parent = TabButton,
             })
@@ -17926,8 +17987,7 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = 0.5,
                     Position = UDim2.fromScale(0.5, 0.5),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromScale(1, 1),
-                    SizeConstraint = Enum.SizeConstraint.RelativeYY,
+                    Size = UDim2.fromOffset(16, 16),
                     Parent = IconSlot,
                 })
             end
@@ -17938,7 +17998,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
                 Text = Name:sub(1, 1):upper(),
-                TextSize = 14,
+                TextSize = 13,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
                 Parent = IconSlot,
@@ -17947,10 +18007,10 @@ function Library:CreateWindow(WindowInfo)
             TabLabel = New("TextLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0, 26, 0.5, 0),
-                Size = UDim2.new(1, -26, 0, 18),
+                Position = UDim2.new(0, 24, 0.5, 0),
+                Size = UDim2.new(1, -24, 0, 18),
                 Text = Name,
-                TextSize = 14,
+                TextSize = 13,
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextWrapped = true,

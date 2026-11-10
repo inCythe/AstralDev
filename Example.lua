@@ -18,6 +18,10 @@ else
     ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/ThemeManager.lua"))()
 end
 
+-- Which Astral is running? If this says GitHub, local edits to Astral.lua are NOT being used.
+local AstralSource = (AstralFolder and AstralFolder:FindFirstChild("Astral")) and "local ModuleScript" or "GitHub main"
+print("[Astral] loaded from:", AstralSource)
+
 SaveManager:SetLibrary(Library)
 ThemeManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
@@ -86,6 +90,7 @@ local BasicToggle = ToggleSec:AddToggle("BasicToggle", {
 BasicToggle:OnChanged(function(Value) print("BasicToggle ->", Value) end)
 
 -- Settings panel on a toggle
+assert(BasicToggle.AddSettings, "Toggle:AddSettings is missing: you are running an outdated Astral (" .. AstralSource .. ")")
 local ToggleGear = BasicToggle:AddSettings()
 ToggleGear:AddSlider("BasicToggleStrength", { Text = "Strength", Default = 50, Min = 0, Max = 100 })
 ToggleGear:AddToggle("BasicToggleAnnounce",  { Text = "Announce changes", Default = false })
