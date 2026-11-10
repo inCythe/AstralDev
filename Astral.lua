@@ -6877,28 +6877,71 @@ do
             Gear.Parent = ParentObj.Base.Parent
         elseif ElementType == "Input" then
             local Box = ParentObj.Holder:FindFirstChildWhichIsA("TextBox")
-            Box.Size = UDim2.new(1, -27, 0, 21)
+            if Box then
+                Box.Size = UDim2.new(1, -27, 0, 21)
+            end
 
             Gear.AnchorPoint = Vector2.new(1, 1)
             Gear.Position = UDim2.fromScale(1, 1)
             Gear.Size = UDim2.fromOffset(21, 21)
             Gear.Parent = ParentObj.Holder
         elseif ElementType == "Dropdown" then
+            --// ReserveRight frees the right edge of the row; the gear sits in it. \\--
             ParentObj:ReserveRight(27)
             Gear.AnchorPoint = Vector2.new(1, 1)
             Gear.Position = UDim2.new(1, 0, 1, 0)
             Gear.Size = UDim2.fromOffset(21, 21)
             Gear.ZIndex = (ParentObj.TopRow and ParentObj.TopRow.ZIndex or 1) + 2
             Gear.Parent = ParentObj.TopRow
-        else
+        elseif ElementType == "Stepper" and ParentObj.Controls and ParentObj.LabelBlock then
+            --// Just left of the +/- controls, vertically centered. \\--
+            local ControlsWidth = ParentObj.ControlsWidth or 94
             Gear.AnchorPoint = Vector2.new(1, 0.5)
-            Gear.Position = UDim2.new(1, -4, 0.5, 0) -- was missing → gear sat off-screen
-            Gear.ZIndex = (ParentObj.TextLabel and ParentObj.TextLabel.ZIndex or 1) + 2
-            Gear.Parent = ParentObj.TextLabel
+            Gear.Position = UDim2.new(1, -(ControlsWidth + 6), 0.5, 0)
+            Gear.Size = UDim2.fromOffset(21, 21)
+            Gear.ZIndex = (ParentObj.Holder.ZIndex or 1) + 3
+            Gear.Parent = ParentObj.Holder
+            ParentObj:ReserveRight(27)
+        elseif ElementType == "Slider" and ParentObj.Holder then
+            --// Top-right of the slider, left of the inline value box when there is one. \\--
+            local ValueBoxOffset = ParentObj.InlineValueBox and 64 or 0
+            Gear.AnchorPoint = Vector2.new(1, 0.5)
+            Gear.Position = UDim2.new(1, -ValueBoxOffset, 0, (ParentObj.TopRowHeight or 14) / 2)
+            Gear.Size = UDim2.fromOffset(21, 21)
+            Gear.ZIndex = (ParentObj.TextLabel and ParentObj.TextLabel.ZIndex or ParentObj.Holder.ZIndex or 1) + 3
+            Gear.Parent = ParentObj.Holder
+            ParentObj:ReserveRight(27)
+        else
+            local Label = ParentObj.TextLabel
+            if not Label and ParentObj.Holder then
+                Label = ParentObj.Holder:FindFirstChildWhichIsA("TextLabel")
+            end
+
+            if Label then
+                Gear.AnchorPoint = Vector2.new(1, 0.5)
+                Gear.Position = UDim2.new(1, -4, 0.5, 0)
+                Gear.ZIndex = Label.ZIndex + 2
+                Gear.Parent = Label
+            elseif ParentObj.Holder then
+                Gear.AnchorPoint = Vector2.new(1, 0)
+                Gear.Position = UDim2.new(1, 0, 0, 0)
+                Gear.Parent = ParentObj.Holder
+            end
         end
 
         local ParentHolder = ParentObj.Holder or ParentObj.Base or (ParentObj.TextLabel and ParentObj.TextLabel.Parent)
-        local TargetOrder = (ParentHolder and ParentHolder.LayoutOrder or 0) + 1
+        --// Share the owner's LayoutOrder. Section children default to 0 and sort by creation order, so
+        --// the panel lands directly under its owner (an order of +1 would sink it to the section's end). \\--
+        local TargetOrder = 0
+        do
+            local Anchor = ParentHolder
+            while Anchor and Anchor.Parent ~= PanelParent do
+                Anchor = Anchor.Parent
+            end
+            if Anchor and Anchor:IsA("GuiObject") then
+                TargetOrder = Anchor.LayoutOrder
+            end
+        end
         local Panel = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = "BackgroundColor",
@@ -9186,6 +9229,21 @@ do
         Section:Resize()
 
         Slider.Holder = Holder
+        Slider.Section = Section
+        Slider.Container = Container
+        Slider.TextLabel = SliderLabel
+        Slider.InlineValueBox = InlineValueBox
+        Slider.TopRowHeight = TopRowHeight
+        Slider.AddSettings = Funcs.AddSettings
+
+        --// Shrinks the label so its text doesn't run under the settings gear. \\--
+        function Slider:ReserveRight(Amount: number)
+            if SliderLabel and SliderLabel.Parent then
+                local Size = SliderLabel.Size
+                SliderLabel.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
+            end
+        end
+
         table.insert(Section.Elements, Slider)
 
         Slider.Default = Slider.Value
@@ -9730,8 +9788,8 @@ do
                 return
             end
             ValueLabel.Text = tostring(Stepper.Value)
-            ValueLabel.BackgroundTransparency = 0.5
-            ValueLabelStroke.Transparency = 0
+            ValueLabel.BackgroundTransparency = 0.7
+            ValueLabelStroke.Transparency = 0.3
         end)
 
         ValueLabel.FocusLost:Connect(function(Enter)
@@ -9941,6 +9999,19 @@ do
 
         Stepper.Holder = Holder
         Stepper.Section = Section
+        Stepper.Container = Container
+        Stepper.TextLabel = Label
+        Stepper.Controls = Controls
+        Stepper.LabelBlock = LabelBlock
+        Stepper.ControlsWidth = ControlsWidth
+        Stepper.AddSettings = Funcs.AddSettings
+
+        --// Shrinks the label area so the settings gear has room without overlapping the controls. \\--
+        function Stepper:ReserveRight(Amount: number)
+            local Size = LabelBlock.Size
+            LabelBlock.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
+        end
+
         table.insert(Section.Elements, Stepper)
 
         Stepper.Default = Stepper.Value
@@ -11244,7 +11315,7 @@ do
         --// rather than a flex layout, so the box is exactly BoxWidth and nothing gets stretched. The box
         --// sits on the bottom edge, so an opened list always starts right under it, even when subtext
         --// makes the label side taller. \\--
-        local DropdownBoxHeight = 26
+        local DropdownBoxHeight = 21
         local TopRow = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
@@ -11255,16 +11326,38 @@ do
         Dropdown.TopRow = TopRow
         Dropdown.ReservedRight = 0
 
+        --// Forward declarations: ReserveRight is defined before these are created, so without these
+        --// it would read (nil) globals and silently do nothing. \\--
+        local DisplayContainer
+        local HasInlineLabel
+
+        --// Frees space on the right edge of the row (used by the settings gear). The inline label
+        --// block always shrinks; a right-anchored box shifts left, a left-anchored/stacked box shrinks. \\--
         function Dropdown:ReserveRight(Amount: number)
             Dropdown.ReservedRight = (Dropdown.ReservedRight or 0) + Amount
-            if DisplayContainer then
-                DisplayContainer.Position = UDim2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), BoxOnLeft and 0 or -Dropdown.ReservedRight, 1, 0)
+            if not DisplayContainer then
+                return
+            end
+
+            if HasInlineLabel then
+                if not BoxOnLeft then
+                    DisplayContainer.Position = UDim2.new(1, -Dropdown.ReservedRight, 1, 0)
+                end
+
+                local LabelBlock = Dropdown.LabelBlock
+                if LabelBlock then
+                    local Size = LabelBlock.Size
+                    LabelBlock.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
+                end
+            else
+                local Size = DisplayContainer.Size
+                DisplayContainer.Size = UDim2.new(Size.X.Scale, Size.X.Offset - Amount, Size.Y.Scale, Size.Y.Offset)
             end
         end
 
         local Label
         local SubtextLabel
-        local HasInlineLabel = IsInline and Dropdown.Text ~= nil
+        HasInlineLabel = IsInline and Dropdown.Text ~= nil
 
         local BoxWidth = tonumber(Info.BoxWidth) or 0.5
         local BoxIsScale = BoxWidth <= 1
@@ -11287,6 +11380,7 @@ do
                 Size = LabelSize,
                 Parent = TopRow,
             })
+            Dropdown.LabelBlock = LabelBlock
 
             local IconOffset = 0
             if Info.Icon then
@@ -11348,7 +11442,7 @@ do
         end
 
         local MenuTable --// assigned further down; the search box handler needs it in scope
-        local DisplayContainer = New("TextButton", {
+        DisplayContainer = New("TextButton", {
             AnchorPoint = Vector2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), 1),
             BackgroundColor3 = "MainColor",
             Position = UDim2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), BoxOnLeft and 0 or -(Dropdown.ReservedRight or 0), 1, 0),
@@ -15373,6 +15467,7 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
         Library.StyleTargets[Sidebar] = "panel"
+        Library:AddOutline(Sidebar)
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -16088,7 +16183,7 @@ function Library:CreateWindow(WindowInfo)
 
     function Window:AddTabSection(Info)
         local SectionName = typeof(Info) == "table" and (Info.Name or "Section") or tostring(Info)
-        local DefaultOpen = typeof(Info) == "table" and (Info.Open ~= false) or true
+        local DefaultOpen = not (typeof(Info) == "table" and Info.Open == false) --// "x and false or true" always yielded true \\--
         local SectionIcon = typeof(Info) == "table" and Library:GetCustomIcon(Info.Icon) or nil
 
         local IsOpen = DefaultOpen
@@ -19093,6 +19188,7 @@ function Library:CreateWindow(WindowInfo)
             BorderSizePixel = 0,
             Size = UDim2.new(0, 300, 0, 400),
             Visible = false,
+            Active = true, --// swallow clicks so they don't reach elements underneath \\--
             ZIndex = Library.SearchOverlayZIndex,
 
             Parent = MainFrame,
@@ -20263,19 +20359,18 @@ function Library:CreateWindow(WindowInfo)
 
             if Input.UserInputType == Enum.UserInputType.MouseButton1
                 or Input.UserInputType == Enum.UserInputType.Touch then
-                local MousePos = UserInputService:GetMouseLocation()
-                local OvPos    = SearchOverlay.AbsolutePosition
-                local OvSize   = SearchOverlay.AbsoluteSize
-                local InOverlay = MousePos.X >= OvPos.X and MousePos.X <= OvPos.X + OvSize.X
-                    and MousePos.Y >= OvPos.Y and MousePos.Y <= OvPos.Y + OvSize.Y
-                local BxPos    = SearchBox.AbsolutePosition
-                local BxSize   = SearchBox.AbsoluteSize
-                local InBox    = MousePos.X >= BxPos.X and MousePos.X <= BxPos.X + BxSize.X
-                    and MousePos.Y >= BxPos.Y and MousePos.Y <= BxPos.Y + BxSize.Y
+                --// The ScreenGui ignores the GUI inset, so AbsolutePosition is in screen space while
+                --// Input.Position is not: add the inset back. Using the event's own position (instead of
+                --// GetMouseLocation) keeps touch accurate. \\--
+                local Pos = Vector2.new(Input.Position.X, Input.Position.Y) + game:GetService("GuiService"):GetGuiInset()
+                local function InFrame(Frame: GuiObject)
+                    local FPos, FSize = Frame.AbsolutePosition, Frame.AbsoluteSize
+                    return Pos.X >= FPos.X and Pos.X <= FPos.X + FSize.X
+                        and Pos.Y >= FPos.Y and Pos.Y <= FPos.Y + FSize.Y
+                end
 
-                if InOverlay then
-
-                elseif not InBox then
+                --// Touches inside the overlay (including drag-scrolling) are left to the ScrollingFrame. \\--
+                if not InFrame(SearchOverlay) and not InFrame(SearchBox) then
                     SearchBox:ReleaseFocus()
                     CloseOverlay()
                 end
