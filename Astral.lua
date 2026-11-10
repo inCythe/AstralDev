@@ -1618,11 +1618,17 @@ Library.StyleFlushQueued = false
 
 function Library:GetGradientColors(): (Color3, Color3)
     local Scheme = Library.Scheme
-    local Start = Library:GetBetterColor(Scheme.BackgroundColor, -2)
+    local Start = Library:GetBetterColor(Scheme.BackgroundColor, -1)
 
     local End = Scheme.GradientColor
     if typeof(End) ~= "Color3" then
-        End = Scheme.BackgroundColor:Lerp(Scheme.AccentColor, Library.IsLightTheme and 0.05 or 0.08)
+        if Library.IsLightTheme then
+            End = Scheme.BackgroundColor:Lerp(Scheme.AccentColor, 0.05)
+        else
+            --// Smooth, subtle dark slate blue undertone that preserves dark themes \\--
+            local SubtleBlue = Color3.fromRGB(22, 30, 48)
+            End = Scheme.BackgroundColor:Lerp(SubtleBlue, 0.35):Lerp(Scheme.AccentColor, 0.05)
+        end
     end
 
     return Start, End
@@ -1652,6 +1658,10 @@ end
 --// BackgroundColor / DarkColor / computed colors = "panel", MainColor = "card". Anything else (accent
 --// bars, outlines, lines) is left alone. \\--
 function Library:ClassifyStyle(Inst: Instance): string?
+    if Library.StyleTargets[Inst] == "solid" then
+        return "solid"
+    end
+
     if not Library.StyleClasses[Inst.ClassName] then
         return nil
     end
@@ -1736,7 +1746,10 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
     local Transparency = Library.WindowTransparency
     local Gradients = Library.GradientsEnabled
 
-    if Mode == "root" then
+    if Mode == "solid" then
+        Inst.BackgroundTransparency = 0
+        return
+    elseif Mode == "root" then
         ApplyRootStyle(Inst, Base)
     elseif Mode == "main" then
         --// The window's own fill is painted by the gradient overlay when gradients are on. \\--
@@ -6877,10 +6890,9 @@ do
             Gear.Size = UDim2.fromOffset(21, 21)
             Gear.Parent = ParentObj.Holder
         elseif ElementType == "Dropdown" then
-            --// Sits just right of the top row, which shrinks to make room. \\--
-            ParentObj:ReserveRight(29)
-            Gear.AnchorPoint = Vector2.new(0, 1)
-            Gear.Position = UDim2.new(1, 8, 1, 0)
+            ParentObj:ReserveRight(27)
+            Gear.AnchorPoint = Vector2.new(1, 1)
+            Gear.Position = UDim2.new(1, 0, 1, 0)
             Gear.Size = UDim2.fromOffset(21, 21)
             Gear.Parent = ParentObj.TopRow
         else
@@ -8337,10 +8349,11 @@ do
             Parent = Holder,
         })
 
+        local IconTile
         if Info.Icon then
-            local IconTile = Library:CreateIconTile(Holder, Info.Icon, { Size = 14, IconColor = Info.IconColor })
-            IconTile.AnchorPoint = Vector2.new(0, 0)
-            IconTile.Position = UDim2.fromOffset(0, 0)
+            IconTile = Library:CreateIconTile(Holder, Info.Icon, { Size = 14, IconColor = Info.IconColor })
+            IconTile.AnchorPoint = Vector2.new(0, 0.5)
+            IconTile.Position = UDim2.fromOffset(0, (14 + (HasSubtext and 14 or 0)) / 2)
         end
 
         local SubtextLabel
@@ -8371,6 +8384,9 @@ do
             local SubHeight = Library:GetSubtextHeight(SubtextLabel.Text, Width)
             SubtextLabel.Size = UDim2.new(1, -IconOffset, 0, SubHeight)
             Holder.Size = UDim2.new(1, 0, 0, 39 + SubHeight)
+            if IconTile then
+                IconTile.Position = UDim2.fromOffset(0, (14 + SubHeight) / 2)
+            end
             Section:Resize()
         end
         if SubtextLabel then
@@ -8598,10 +8614,19 @@ do
                 and UDim2.new(1, -(ValueBoxWidth + ValueBoxGap + IconOffset), 0, TopRowHeight)
                 or  UDim2.new(1, -IconOffset, 0, 14)
 
+            local IconTile
+            local function CenterSliderIcon(SubHeight)
+                if IconTile then
+                    local SubtextTop = math.min(TopRowHeight, 16)
+                    local TotalH = HasSubtext and (SubtextTop + (SubHeight or 14)) or TopRowHeight
+                    IconTile.AnchorPoint = Vector2.new(0, 0.5)
+                    IconTile.Position = UDim2.fromOffset(0, TotalH / 2)
+                end
+            end
+
             if Info.Icon then
-                local IconTile = Library:CreateIconTile(Holder, Info.Icon, { Size = 14, IconColor = Info.IconColor })
-                IconTile.AnchorPoint = Vector2.new(0, 0.5)
-                IconTile.Position = UDim2.fromOffset(0, TopRowHeight / 2)
+                IconTile = Library:CreateIconTile(Holder, Info.Icon, { Size = 14, IconColor = Info.IconColor })
+                CenterSliderIcon(14)
             end
 
             if HasSubtext then
@@ -8627,6 +8652,7 @@ do
                     local SubHeight = Library:GetSubtextHeight(SliderSubtext.Text, Width)
                     SliderSubtext.Size = UDim2.new(1, -IconOffset, 0, SubHeight)
                     Holder.Size = UDim2.new(1, 0, 0, TopRowHeight + VerticalGap + 15 + math.max(SubHeight - (TopRowHeight - SubtextTop), 0))
+                    CenterSliderIcon(SubHeight)
                     Section:Resize()
                 end
                 Library:BindWidth(Holder, UpdateSubtextHeight)
@@ -9220,27 +9246,19 @@ do
             Parent = Base,
         })
 
-        local Content = New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            AutomaticSize = Enum.AutomaticSize.X,
-            BackgroundTransparency = 1,
-            Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(0, Info.IconSize),
-            Parent = Base,
-        })
-        New("UIListLayout", {
+        local ContentLayout = New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             HorizontalAlignment = Enum.HorizontalAlignment.Center,
             Padding = UDim.new(0, 6),
             SortOrder = Enum.SortOrder.LayoutOrder,
             VerticalAlignment = Enum.VerticalAlignment.Center,
-            Parent = Content,
+            Parent = Base,
         })
         if HasText then
             New("UIPadding", {
                 PaddingLeft = UDim.new(0, 8),
                 PaddingRight = UDim.new(0, 8),
-                Parent = Content,
+                Parent = Base,
             })
         end
 
@@ -9248,15 +9266,16 @@ do
             BackgroundTransparency = 1,
             ImageColor3 = IconButton.Risky and "RedColor" or "FontColor",
             ImageTransparency = 0.4,
+            LayoutOrder = 1,
             Size = UDim2.fromOffset(Info.IconSize, Info.IconSize),
-            Parent = Content,
+            Parent = Base,
         })
         Library:ApplyIcon(IconImage, IconButton.Icon)
 
         local TextLabel = New("TextLabel", {
             AutomaticSize = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
-            LayoutOrder = 1,
+            LayoutOrder = 2,
             Size = UDim2.fromOffset(0, 16),
             Text = Info.Text,
             TextColor3 = IconButton.Risky and "RedColor" or "FontColor",
@@ -9396,10 +9415,17 @@ do
             Section:Resize()
         end
 
-        --// Width an element wants when it is set to "Auto" (nil means it cannot size itself, so it fills). \\\\--
+        --// Width an element wants when it is set to "Auto" (nil means it cannot size itself, so it fills). \\--
         local function NaturalWidth(Element): number?
             if Element.Type == "IconButton" then
-                return Element.Holder.AbsoluteSize.X / Library.DPIScale
+                local HasText = typeof(Element.Text) == "string" and Element.Text ~= ""
+                if HasText then
+                    local TextWidth = Library:GetTextBounds(Element.Text, Library.Scheme.Font, 14, 400)
+                    local IconSize = 14
+                    return math.ceil(TextWidth) + IconSize + 22
+                else
+                    return 21
+                end
             end
 
             local Text = Element.Text
@@ -9993,11 +10019,6 @@ do
                 Parent = HeaderRow,
             })
         )
-        Library:MakeLine(HeaderRow, {
-            AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, 1),
-        })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -10010,12 +10031,18 @@ do
             Parent = HeaderRow,
         })
 
+        local HeaderLine = Library:MakeLine(Card, {
+            LayoutOrder = 1,
+            Size = UDim2.new(1, 0, 0, 1),
+        })
+        HeaderLine.Visible = Table.Header
+
         local Body = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.None,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
-            LayoutOrder = 1,
+            LayoutOrder = 2,
             ScrollBarImageColor3 = "AccentColor",
             ScrollBarThickness = 3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -10029,7 +10056,7 @@ do
 
         local EmptyLabel = New("TextLabel", {
             BackgroundTransparency = 1,
-            LayoutOrder = 2,
+            LayoutOrder = 3,
             Size = UDim2.new(1, 0, 0, 26),
             Text = Table.EmptyText,
             TextSize = 13,
@@ -10097,7 +10124,9 @@ do
 
         --// Works out every column's pixel width for the current table width. \\--
         local function ComputeWidths()
-            local Inner = math.max((Card.AbsoluteSize.X / Library.DPIScale) - 16, 40)
+            local CardWidth = Card.AbsoluteSize.X > 0 and (Card.AbsoluteSize.X / Library.DPIScale)
+                or (Section.Container and Section.Container.AbsoluteSize.X > 0 and (Section.Container.AbsoluteSize.X / Library.DPIScale) or 260)
+            local Inner = math.max(CardWidth - 16, 40)
             local Used, Weights = 0, 0
             local Result = {}
 
@@ -10169,10 +10198,11 @@ do
                 Offset = 18
             end
 
+            local PadH = 4
             local Props = {
                 BackgroundTransparency = 1,
-                Position = UDim2.fromOffset(Offset, 0),
-                Size = UDim2.new(1, -Offset, 1, 0),
+                Position = UDim2.fromOffset(Offset + PadH, 0),
+                Size = UDim2.new(1, -(Offset + PadH * 2), 1, 0),
                 Text = Text,
                 TextSize = IsHeader and 12 or 13,
                 TextTransparency = IsHeader and 0.4 or 0.15,
@@ -10204,6 +10234,9 @@ do
             table.clear(RowCells)
 
             Widths = ComputeWidths()
+
+            HeaderRow.Visible = Table.Header
+            HeaderLine.Visible = Table.Header
 
             for Index, Column in Table.Columns do
                 HeaderCells[Index] = MakeCell(HeaderRow, Column, Column.Name, Index, true)
@@ -11143,17 +11176,22 @@ do
         --// rather than a flex layout, so the box is exactly BoxWidth and nothing gets stretched. The box
         --// sits on the bottom edge, so an opened list always starts right under it, even when subtext
         --// makes the label side taller. \\--
+        local DropdownBoxHeight = 24
         local TopRow = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
             LayoutOrder = 1,
-            Size = UDim2.new(1, 0, 0, 21),
+            Size = UDim2.new(1, 0, 0, DropdownBoxHeight),
             Parent = Holder,
         })
         Dropdown.TopRow = TopRow
+        Dropdown.ReservedRight = 0
 
         function Dropdown:ReserveRight(Amount: number)
-            TopRow.Size = UDim2.new(1, -Amount, 0, 21)
+            Dropdown.ReservedRight = (Dropdown.ReservedRight or 0) + Amount
+            if DisplayContainer then
+                DisplayContainer.Position = UDim2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), BoxOnLeft and 0 or -Dropdown.ReservedRight, 1, 0)
+            end
         end
 
         local Label
@@ -11162,9 +11200,9 @@ do
 
         local BoxWidth = tonumber(Info.BoxWidth) or 0.5
         local BoxIsScale = BoxWidth <= 1
-        local BoxSize = UDim2.new(1, 0, 0, 21)
+        local BoxSize = UDim2.new(1, 0, 0, DropdownBoxHeight)
         if HasInlineLabel then
-            BoxSize = BoxIsScale and UDim2.new(BoxWidth, -4, 0, 21) or UDim2.fromOffset(BoxWidth, 21)
+            BoxSize = BoxIsScale and UDim2.new(BoxWidth, -4, 0, DropdownBoxHeight) or UDim2.fromOffset(BoxWidth, DropdownBoxHeight)
 
             local LabelSize = BoxIsScale and UDim2.new(1 - BoxWidth, -4, 0, 0) or UDim2.new(1, -(BoxWidth + 8), 0, 0)
             local LabelPosition
@@ -11245,7 +11283,7 @@ do
         local DisplayContainer = New("TextButton", {
             AnchorPoint = Vector2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), 1),
             BackgroundColor3 = "MainColor",
-            Position = UDim2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), 0, 1, 0),
+            Position = UDim2.new(BoxOnLeft and 0 or (HasInlineLabel and 1 or 0), BoxOnLeft and 0 or -(Dropdown.ReservedRight or 0), 1, 0),
             Size = BoxSize,
             Text = "",
             TextTransparency = 1,
@@ -11323,14 +11361,14 @@ do
             ActionHolder = New("Frame", {
                 BackgroundTransparency = 1,
                 LayoutOrder = 2,
-                Size = UDim2.new(1, 0, 0, 20),
+                Size = UDim2.new(1, 0, 0, DropdownBoxHeight),
                 Visible = false,
                 Parent = Holder,
             })
             ActionRow = New("Frame", {
                 BackgroundColor3 = "MainColor",
                 Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.new(1, 0, 0, 21),
+                Size = UDim2.new(1, 0, 0, DropdownBoxHeight),
                 Parent = ActionHolder,
             })
             local ActionStroke = New("UIStroke", {
@@ -11350,7 +11388,7 @@ do
                 Parent = ActionRow,
             })
 
-            local ClusterReserve = Info.Multi and 84 or 0
+            local ClusterReserve = Info.Multi and 96 or 0
 
             if Info.Searchable then
                 local SearchIcon = New("ImageLabel", {
@@ -11405,12 +11443,12 @@ do
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundTransparency = 1,
                     Position = UDim2.fromScale(1, 0.5),
-                    Size = UDim2.fromOffset(0, 15),
+                    Size = UDim2.fromOffset(0, 18),
                     Parent = ActionRow,
                 })
                 New("UIListLayout", {
                     FillDirection = Enum.FillDirection.Horizontal,
-                    Padding = UDim.new(0, 6),
+                    Padding = UDim.new(0, 5),
                     SortOrder = Enum.SortOrder.LayoutOrder,
                     VerticalAlignment = Enum.VerticalAlignment.Center,
                     Parent = Cluster,
@@ -11419,19 +11457,37 @@ do
                 local function MakeActionBtn(BtnText, Order, Callback)
                     local Btn = New("TextButton", {
                         AutomaticSize = Enum.AutomaticSize.X,
-                        BackgroundTransparency = 1,
+                        BackgroundColor3 = "BackgroundColor",
+                        BackgroundTransparency = 0,
                         LayoutOrder = Order,
-                        Size = UDim2.fromOffset(0, 15),
+                        Size = UDim2.fromOffset(36, 18),
                         Text = BtnText,
+                        TextColor3 = "FontColor",
                         TextSize = 12,
-                        TextTransparency = 0.45,
+                        TextTransparency = 0.35,
                         Parent = Cluster,
+                    })
+                    table.insert(
+                        Library.Corners,
+                        New("UICorner", {
+                            CornerRadius = UDim.new(0, 4),
+                            Parent = Btn,
+                        })
+                    )
+                    New("UIStroke", {
+                        Color = "OutlineColor",
+                        Parent = Btn,
+                    })
+                    New("UIPadding", {
+                        PaddingLeft = UDim.new(0, 7),
+                        PaddingRight = UDim.new(0, 7),
+                        Parent = Btn,
                     })
                     Btn.MouseEnter:Connect(function()
                         TweenService:Create(Btn, Library.TweenInfo, { TextTransparency = 0 }):Play()
                     end)
                     Btn.MouseLeave:Connect(function()
-                        TweenService:Create(Btn, Library.TweenInfo, { TextTransparency = 0.45 }):Play()
+                        TweenService:Create(Btn, Library.TweenInfo, { TextTransparency = 0.35 }):Play()
                     end)
                     Btn.MouseButton1Click:Connect(Callback)
                     return Btn
@@ -14803,6 +14859,23 @@ function Library:CreateWindow(WindowInfo)
             })
         )
 
+        local TopBackground = New("Frame", {
+            Name = "TopBackground",
+            BackgroundColor3 = "BackgroundColor",
+            Position = UDim2.fromScale(0, 0),
+            Size = UDim2.new(1, 0, 0, 48),
+            ZIndex = MainFrame.ZIndex,
+            Parent = MainFrame,
+        })
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = TopBackground,
+            })
+        )
+        Library.StyleTargets[TopBackground] = "panel"
+
         local TopBar = New("Frame", {
             Name = "TopBar",
             BackgroundTransparency = 1,
@@ -15118,9 +15191,7 @@ function Library:CreateWindow(WindowInfo)
 
         BottomBackground = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
-            end,
+            BackgroundColor3 = "BackgroundColor",
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, math.max(20, WindowInfo.CornerRadius * 2)),
             Parent = MainFrame
@@ -18270,6 +18341,7 @@ function Library:CreateWindow(WindowInfo)
         DialogFrame = New("TextButton", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 0,
             Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.fromOffset(300, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -18279,6 +18351,7 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = Library.DialogContentZIndex + 1,
             Parent = DialogOverlay,
         })
+        Library.StyleTargets[DialogFrame] = "solid"
         table.insert(
             Library.Corners,
             New("UICorner", {
@@ -21210,4 +21283,4 @@ Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 getgenv().Library = Library
 
-return Library
+return Library
