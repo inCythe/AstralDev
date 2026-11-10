@@ -91,7 +91,7 @@ do
 
     --// Gradient end color used when a theme doesn't define its own: the background pushed toward the accent.
     local function DeriveGradient(BackgroundColor: Color3, AccentColor: Color3): Color3
-        return BackgroundColor:Lerp(AccentColor, 0.22)
+        return BackgroundColor:Lerp(AccentColor, 0.08)
     end
 
     local function IsValidThemeData(Data: any): boolean

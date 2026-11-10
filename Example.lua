@@ -1,5 +1,8 @@
 --============================================================================
--- ASTRAL UI — OFFICIAL SHOWCASE & REFERENCE
+-- ASTRAL UI — OFFICIAL IN-DEPTH SHOWCASE & COMPREHENSIVE REFERENCE
+--============================================================================
+-- This showcase demonstrates every component, layout mode, addon, and method
+-- available in Astral UI, built in an organized, production-ready structure.
 --============================================================================
 
 local Library
@@ -23,89 +26,137 @@ end
 SaveManager:SetLibrary(Library)
 ThemeManager:SetLibrary(Library)
 
+--============================================================================
+-- MAIN WINDOW CREATION
+--============================================================================
 local Window = Library:CreateWindow({
     Title = "Astral UI",
-    Subtitle = "Development Showcase",
+    Subtitle = "Comprehensive Reference",
     TitleAlignment = "Left",
     Icon = "AstralIcon",
     Footer = "Astral UI • github.com/inCythe/AstralDev",
     FooterLeft = "Build 2.0-dev",
     FooterRight = "Luau Client",
-    Size = UDim2.fromOffset(800, 560),
+    Size = UDim2.fromOffset(820, 580),
     Center = true,
     Resizable = true,
-    MinSize = Vector2.new(640, 440),
-    MaxSize = Vector2.new(1200, 850),
+    MinSize = Vector2.new(660, 460),
+    MaxSize = Vector2.new(1280, 880),
     Gradient = true,
     CornerRadius = 8,
 })
 
 --============================================================================
--- TAB 1: GENERAL (Basic controls, toggles, steppers, sliders)
+-- TAB 1: GENERAL CONTROLS (Toggles, Checkboxes, Buttons, Steppers, Sliders)
 --============================================================================
 local GeneralTab = Window:AddTab({ Name = "General", Icon = "layout-grid" })
 
+-- Column 1: Toggles & Checkboxes
 local ToggleSection = GeneralTab:AddSection({
     Side = 1,
-    Name = "Toggles & Checkboxes",
-    Icon = "check-square",
+    Name = "Toggles & Switches",
+    Icon = "square-check",
     IconStyle = "Tile",
-    Subtext = "Interactive state switches",
+    Subtext = "Interactive boolean switches with addons",
 })
 
 local MasterToggle = ToggleSection:AddToggle("MasterFeature", {
-    Text = "Master Switch",
-    Subtext = "Toggles core subsystem on or off",
+    Text = "Master System Switch",
+    Subtext = "Controls whether the core features are enabled",
     Default = true,
     Icon = "power",
     Callback = function(Value)
         Library:Notify({
             Title = "Master Switch",
-            Description = Value and "Features enabled" or "Features disabled",
+            Description = Value and "Subsystem activated" or "Subsystem suspended",
             Time = 1.5,
+            Icon = Value and "circle-check" or "circle-alert",
         })
     end,
 })
 
-ToggleSection:AddToggle("AutoFarm", {
-    Text = "Auto Routine",
-    Subtext = "Simulates scheduled background task",
+-- Attach ColorPicker and KeyPicker to Toggle
+MasterToggle:AddColorPicker("MasterColor", {
+    Title = "System Accent",
+    Default = Color3.fromRGB(66, 135, 245),
+    Transparency = 0,
+    Callback = function(Col)
+        print("[Astral] MasterColor changed to:", Col)
+    end,
+})
+
+MasterToggle:AddKeyPicker("MasterKeybind", {
+    Default = "RightShift",
+    Mode = "Toggle", -- "Toggle" | "Hold" | "Always"
+    Text = "Master Toggle Key",
+    SyncToggleState = true,
+})
+
+local AutoRoutineToggle = ToggleSection:AddToggle("AutoRoutine", {
+    Text = "Automated Routine",
+    Subtext = "Runs periodic updates in background thread",
     Default = false,
     Icon = "refresh-cw",
     Callback = function(Value)
-        Library:Notify({
-            Title = "Auto Routine",
-            Description = Value and "Routine started" or "Routine paused",
-            Time = 1.5,
-        })
+        print("[Astral] AutoRoutine set to:", Value)
     end,
 })
 
-ToggleSection:AddCheckbox("SilentMode", {
-    Text = "Silent Execution",
+-- Toggle with expandable settings panel
+local AutoRoutineSettings = AutoRoutineToggle:AddSettings()
+AutoRoutineSettings:AddSlider("RoutineInterval", {
+    Text = "Tick Interval",
+    Default = 100,
+    Min = 20,
+    Max = 1000,
+    Suffix = " ms",
+})
+AutoRoutineSettings:AddToggle("RoutineSafeMode", {
+    Text = "Enable Crash Safeguard",
     Default = true,
-    Callback = function(Value)
-        print("[Astral] Silent mode:", Value)
-    end,
 })
 
-ToggleSection:AddCheckbox("DebugLogs", {
-    Text = "Verbose Debug Logging",
+ToggleSection:AddDivider("Checkboxes & Methods")
+
+local SilentCheckbox = ToggleSection:AddCheckbox("SilentExecution", {
+    Text = "Silent Execution Mode",
+    Subtext = "Hides console logs and on-screen popups",
     Default = false,
 })
 
+local VerboseCheckbox = ToggleSection:AddCheckbox("VerboseLogging", {
+    Text = "Verbose Debug Telemetry",
+    Default = true,
+})
+
+local MethodRow = ToggleSection:AddRow()
+MethodRow:AddButton({
+    Text = "Toggle Silent",
+    Func = function()
+        SilentCheckbox:SetValue(not SilentCheckbox.Value)
+    end,
+})
+MethodRow:AddButton({
+    Text = "Lock Verbose",
+    Func = function()
+        VerboseCheckbox:SetDisabled(not VerboseCheckbox.Disabled)
+    end,
+})
+
+-- Column 1: Buttons Showcase
 local ButtonSection = GeneralTab:AddSection({
     Side = 1,
     Name = "Action Buttons",
     Icon = "mouse-pointer",
+    Subtext = "Standard, risky, and dynamically modified buttons",
 })
 
 ButtonSection:AddButton({
-    Text = "Send Info Notification",
+    Text = "Dispatch Info Notification",
     Func = function()
         Library:Notify({
-            Title = "System Notice",
-            Description = "This is a standard informational notification.",
+            Title = "Notification Dispatch",
+            Description = "Standard operational message received successfully.",
             Time = 2.5,
             Icon = "info",
         })
@@ -113,44 +164,52 @@ ButtonSection:AddButton({
 })
 
 ButtonSection:AddButton({
-    Text = "Toggle Master Switch",
+    Text = "Purge Cache (Risky Action)",
+    Risky = true,
     Func = function()
-        MasterToggle:SetValue(not MasterToggle.Value)
+        Library:Notify({
+            Title = "Cache Purged",
+            Description = "All volatile runtime cache was safely cleared.",
+            Time = 2,
+            Icon = "triangle-alert",
+        })
     end,
 })
 
--- Right column of General Tab
+-- Column 2: Sliders & Numeric Controls
 local SliderSection = GeneralTab:AddSection({
     Side = 2,
-    Name = "Sliders & Values",
-    Icon = "sliders",
+    Name = "Precision Sliders",
+    Icon = "sliders-horizontal",
     IconStyle = "Tile",
-    Subtext = "Numeric adjustments with vertical icon centering",
+    Subtext = "Accurate drag-bars with editable numeric value boxes",
 })
 
-local WalkspeedSlider = SliderSection:AddSlider("WalkSpeed", {
-    Text = "Movement Speed",
-    Subtext = "Adjust player velocity multiplier",
+local SpeedSlider = SliderSection:AddSlider("PlayerVelocity", {
+    Text = "Movement Velocity",
+    Subtext = "Player walkspeed modifier in studs per second",
     Icon = "zap",
-    Default = 16,
+    Default = 24,
     Min = 16,
-    Max = 150,
+    Max = 200,
     Rounding = 0,
     Suffix = " studs/s",
+    Editable = true,
+    EditableStyle = "ValueBox", -- Click-to-type number box
     Callback = function(Value)
-        print("[Astral] WalkSpeed set to:", Value)
+        print("[Astral] Movement Velocity:", Value)
     end,
 })
 
-local FOVSlider = SliderSection:AddSlider("FieldOfView", {
-    Text = "Field of View",
-    Subtext = "Camera viewport angle",
+local AngleSlider = SliderSection:AddSlider("FieldOfView", {
+    Text = "Camera Field of View",
+    Subtext = "Perspective angle of current viewport camera",
     Icon = "eye",
     Default = 70,
-    Min = 60,
+    Min = 50,
     Max = 120,
     Rounding = 0,
-    Suffix = " deg",
+    Suffix = "°",
     Callback = function(Value)
         local Cam = workspace.CurrentCamera
         if Cam then
@@ -159,104 +218,163 @@ local FOVSlider = SliderSection:AddSlider("FieldOfView", {
     end,
 })
 
+local FloatSlider = SliderSection:AddSlider("SmoothFactor", {
+    Text = "Smoothing Coefficient",
+    Subtext = "Precision decimal interpolation damping",
+    Default = 0.65,
+    Min = 0.05,
+    Max = 1.00,
+    Rounding = 2,
+    Callback = function(Value)
+        print("[Astral] Smooth factor:", Value)
+    end,
+})
+
+SliderSection:AddDivider("Slider Method Controls")
+
+local SliderControlsRow = SliderSection:AddRow()
+SliderControlsRow:AddButton({
+    Text = "Set Max = 300",
+    Func = function()
+        SpeedSlider:SetMax(300)
+    end,
+})
+SliderControlsRow:AddButton({
+    Text = "Set Min = 20",
+    Func = function()
+        SpeedSlider:SetMin(20)
+    end,
+})
+SliderControlsRow:AddButton({
+    Text = "Reset = 24",
+    Func = function()
+        SpeedSlider:SetValue(24)
+    end,
+})
+
+-- Column 2: Numeric Steppers
 local StepperSection = GeneralTab:AddSection({
     Side = 2,
     Name = "Numeric Steppers",
     Icon = "layers",
+    Subtext = "Click to type directly or click/hold +/- buttons",
 })
 
-local ItemStepper = StepperSection:AddStepper("BatchCount", {
-    Text = "Batch Amount",
-    Subtext = "Items processed per execution tick",
+local BatchStepper = StepperSection:AddStepper("BatchSize", {
+    Text = "Processing Batch Size",
+    Subtext = "Click the number to type, or hold +/- buttons",
     Icon = "box",
-    Default = 5,
+    Default = 10,
     Min = 1,
-    Max = 50,
+    Max = 100,
     Increment = 1,
     Callback = function(Value)
-        Library:Notify({
-            Title = "Batch Updated",
-            Description = "New batch size: " .. tostring(Value),
-            Time = 1.5,
-        })
+        print("[Astral] Batch size updated:", Value)
     end,
 })
 
-StepperSection:AddButton({
-    Text = "Reset Batch to 5",
+local IntervalStepper = StepperSection:AddStepper("TickDelay", {
+    Text = "Thread Tick Interval",
+    Subtext = "Custom value text formatting with step 5",
+    Icon = "clock",
+    Default = 25,
+    Min = 5,
+    Max = 100,
+    Increment = 5,
+    Format = "%s ms",
+})
+
+local StepperRow = StepperSection:AddRow()
+StepperRow:AddButton({
+    Text = "Set Batch = 50",
     Func = function()
-        ItemStepper:SetValue(5)
+        BatchStepper:SetValue(50)
+    end,
+})
+StepperRow:AddButton({
+    Text = "Toggle Lock",
+    Func = function()
+        BatchStepper:SetDisabled(not BatchStepper.Disabled)
     end,
 })
 
 --============================================================================
--- TAB 2: DROPDOWNS & SELECTION
+-- TAB 2: DROPDOWNS & SELECTION (Single, Multi, Searchable, Settings)
 --============================================================================
 local DropdownTab = Window:AddTab({ Name = "Dropdowns", Icon = "list" })
 
 local StandardDDSection = DropdownTab:AddSection({
     Side = 1,
-    Name = "Single & Settings Dropdowns",
+    Name = "Single & Attached Settings",
     Icon = "list-ordered",
+    IconStyle = "Tile",
+    Subtext = "Dropdowns with right-aligned settings gear",
 })
 
 StandardDDSection:AddDropdown("GameDifficulty", {
     Text = "Difficulty Level",
+    Subtext = "Determines enemy AI aggression and health",
     Values = { "Casual", "Normal", "Veteran", "Nightmare" },
     Default = "Normal",
     Callback = function(Value)
         Library:Notify({
             Title = "Difficulty Changed",
-            Description = "Set to " .. tostring(Value),
+            Description = "Difficulty set to: " .. tostring(Value),
             Time = 1.5,
+            Icon = "swords",
         })
     end,
 })
 
--- Dropdown with :AddSettings() working properly with right-side gear
-local SettingsDD = StandardDDSection:AddDropdown("TargetPriority", {
-    Text = "Target Priority",
+-- Dropdown with :AddSettings() - gear on right, opens panel directly beneath
+local PriorityDD = StandardDDSection:AddDropdown("TargetPriority", {
+    Text = "Target Selection Priority",
+    Subtext = "Click the gear on the right to customize filters",
     Values = { "Closest", "Lowest Health", "Highest Threat", "Random" },
     Default = "Closest",
 })
-local DDSettings = SettingsDD:AddSettings()
-DDSettings:AddToggle("IncludeNPCs", {
-    Text = "Include NPC Targets",
+
+local PrioritySettings = PriorityDD:AddSettings()
+PrioritySettings:AddToggle("IncludeNPCs", {
+    Text = "Include Non-Player Characters",
     Default = true,
     Callback = function(Val)
         Library:Notify({
-            Title = "Target Setting",
-            Description = "NPC Targets: " .. (Val and "ON" or "OFF"),
+            Title = "Target Filter",
+            Description = Val and "NPC targeting active" or "Players only",
             Time = 1.5,
+            Icon = "target",
         })
     end,
 })
-DDSettings:AddToggle("WallCheck", {
-    Text = "Line of Sight Check",
+PrioritySettings:AddToggle("CheckVisibility", {
+    Text = "Require Direct Line of Sight",
     Default = true,
 })
-DDSettings:AddSlider("MaxDistance", {
-    Text = "Max Range",
-    Default = 250,
+PrioritySettings:AddSlider("MaxEngageRange", {
+    Text = "Max Engagement Distance",
+    Default = 300,
     Min = 50,
     Max = 1000,
     Suffix = " studs",
 })
 
+-- Column 2: Searchable & Multi-Select Dropdowns
 local MultiDDSection = DropdownTab:AddSection({
     Side = 2,
-    Name = "Searchable & Multi Dropdown",
+    Name = "Searchable & Multi-Selection",
     Icon = "search",
     IconStyle = "Tile",
-    Subtext = "Full height search bar with prominent All / Clear buttons",
+    Subtext = "Search field with enlarged All & Clear quick actions",
 })
 
-local RolesDropdown = MultiDDSection:AddDropdown("SelectedRoles", {
-    Text = "Target Hitboxes",
-    Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "HumanoidRootPart" },
+local HitboxDropdown = MultiDDSection:AddDropdown("TargetHitboxes", {
+    Text = "Targeted Hitbox Regions",
+    Subtext = "Multiple selection with instant multi-toggle",
+    Values = { "Head", "UpperTorso", "LowerTorso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "HumanoidRootPart" },
     Multi = true,
     Searchable = true,
-    Default = { "Head", "Torso" },
+    Default = { "Head", "UpperTorso" },
     Callback = function(Values)
         local Selected = {}
         for Key, Bool in pairs(Values) do
@@ -266,35 +384,59 @@ local RolesDropdown = MultiDDSection:AddDropdown("SelectedRoles", {
     end,
 })
 
-local RegionDropdown = MultiDDSection:AddDropdown("RegionSearch", {
-    Text = "Server Region",
-    Values = { "US-East", "US-West", "EU-Central", "EU-West", "Asia-East", "Asia-Southeast", "Australia" },
+local ServerRegionDropdown = MultiDDSection:AddDropdown("ServerRegion", {
+    Text = "Matchmaking Server Region",
+    Subtext = "Searchable single-select region routing",
+    Values = { "US-East (N. Virginia)", "US-West (Oregon)", "EU-Central (Frankfurt)", "EU-West (London)", "Asia-East (Tokyo)", "Asia-Southeast (Singapore)", "Australia (Sydney)" },
     Searchable = true,
-    Default = "US-East",
+    Default = "US-East (N. Virginia)",
     Callback = function(Value)
         Library:Notify({
-            Title = "Server Region",
-            Description = "Selected region: " .. tostring(Value),
+            Title = "Region Routing",
+            Description = "Routed to: " .. tostring(Value),
             Time = 1.5,
+            Icon = "globe",
         })
     end,
 })
 
+MultiDDSection:AddDivider("Dropdown API Methods")
+
+local DDMethodRow = MultiDDSection:AddRow()
+DDMethodRow:AddButton({
+    Text = "Select Head Only",
+    Func = function()
+        HitboxDropdown:SetValue({ Head = true })
+    end,
+})
+DDMethodRow:AddButton({
+    Text = "Clear Selection",
+    Func = function()
+        HitboxDropdown:SetValue({})
+    end,
+})
+DDMethodRow:AddButton({
+    Text = "Toggle Lock",
+    Func = function()
+        HitboxDropdown:SetDisabled(not HitboxDropdown.Disabled)
+    end,
+})
+
 --============================================================================
--- TAB 3: ROWS & COMBINATIONS (Presets, IconButtons, Mixed Widths)
+-- TAB 3: ROWS & COMBINATIONS (Presets, IconButtons, Flexible Widths)
 --============================================================================
-local RowsTab = Window:AddTab({ Name = "Rows & Combos", Icon = "columns" })
+local RowsTab = Window:AddTab({ Name = "Rows & Combos", Icon = "columns-2" })
 
 local PresetSection = RowsTab:AddSection({
     Side = 1,
     Name = "Interactive Preset Manager",
     Icon = "sliders-horizontal",
     IconStyle = "Tile",
-    Subtext = "Fully functional [+], [pencil], and [trash] preset actions",
+    Subtext = "Functional [+], [pencil], and [trash] action buttons in a row",
 })
 
 -- Preset state storage
-local PresetList = { "Default Profile", "Rage Mode", "Legit Play" }
+local PresetList = { "Default Profile", "Rage Mode", "Legit Play", "Exploration" }
 local CurrentPreset = PresetList[1]
 
 local PresetRow = PresetSection:AddRow()
@@ -303,14 +445,14 @@ local PresetDD = PresetRow:AddDropdown("ActivePreset", {
     Default = 1,
     Callback = function(Val)
         CurrentPreset = Val
-        print("[Astral] Switched preset to:", Val)
+        print("[Astral] Switched active profile to:", Val)
     end,
 })
 
--- [pencil] Rename preset
+-- [square-pen] Rename preset
 PresetRow:AddIconButton({
-    Icon = "pencil",
-    Tooltip = "Rename selected preset",
+    Icon = "square-pen",
+    Tooltip = "Rename selected profile",
     Func = function()
         if not CurrentPreset then return end
         local Renamed = CurrentPreset .. " (Edited)"
@@ -325,9 +467,9 @@ PresetRow:AddIconButton({
         PresetDD:SetValue(Renamed)
         Library:Notify({
             Title = "Preset Renamed",
-            Description = "Renamed to: " .. Renamed,
+            Description = "Updated profile title to: " .. Renamed,
             Time = 2,
-            Icon = "edit",
+            Icon = "square-pen",
         })
     end,
 })
@@ -335,15 +477,15 @@ PresetRow:AddIconButton({
 -- [trash-2] Delete preset
 PresetRow:AddIconButton({
     Icon = "trash-2",
-    Tooltip = "Delete current preset",
+    Tooltip = "Delete current profile",
     Risky = true,
     Func = function()
         if #PresetList <= 1 then
             Library:Notify({
                 Title = "Cannot Delete",
-                Description = "At least one preset must remain active.",
+                Description = "At least one profile must remain available.",
                 Time = 2,
-                Icon = "alert-circle",
+                Icon = "circle-alert",
             })
             return
         end
@@ -358,105 +500,114 @@ PresetRow:AddIconButton({
         PresetDD:SetValues(PresetList)
         PresetDD:SetValue(CurrentPreset)
         Library:Notify({
-            Title = "Preset Deleted",
-            Description = "Deleted: " .. Old,
+            Title = "Preset Removed",
+            Description = "Deleted profile: " .. Old,
             Time = 2,
-            Icon = "trash",
+            Icon = "trash-2",
         })
     end,
 })
 
--- [+] Add new preset
+-- [plus] Add new preset
 PresetRow:AddIconButton({
     Icon = "plus",
-    Tooltip = "Create new preset",
+    Tooltip = "Create new profile",
     Func = function()
-        local NewName = "Preset " .. (#PresetList + 1)
+        local NewName = "Profile " .. (#PresetList + 1)
         table.insert(PresetList, NewName)
         CurrentPreset = NewName
         PresetDD:SetValues(PresetList)
         PresetDD:SetValue(NewName)
         Library:Notify({
-            Title = "Preset Created",
+            Title = "Profile Created",
             Description = "Created and selected: " .. NewName,
             Time = 2,
-            Icon = "check",
+            Icon = "circle-check",
         })
     end,
 })
 
-PresetSection:AddDivider("Row Width Modes")
+PresetSection:AddDivider("Row Layout Width Modes")
 
 local WidthRow = PresetSection:AddRow()
 WidthRow:AddButton({ Text = "Fill (x1)" })
 WidthRow:AddButton({ Text = "Fill (x2)", Weight = 2 })
-WidthRow:AddButton({ Text = "100px", Width = 100 })
+WidthRow:AddButton({ Text = "110px", Width = 110 })
 
-local AutoRow = PresetSection:AddRow()
-AutoRow:AddIconButton({ Icon = "plus", Text = "Auto", Width = "Auto" })
-AutoRow:AddIconButton({ Icon = "check", Text = "Confirm", Width = "Auto" })
-AutoRow:AddDropdown("AutoFillDD", { Values = { "Takes remaining space", "Responsive item" }, Default = 1 })
+local MixedRow = PresetSection:AddRow()
+MixedRow:AddIconButton({ Icon = "plus", Text = "Auto Item", Width = "Auto" })
+MixedRow:AddIconButton({ Icon = "circle-check", Text = "Done", Width = "Auto" })
+MixedRow:AddDropdown("MixedDD", { Values = { "Takes remainder space", "Dynamic flex container" }, Default = 1 })
 
+-- Column 2: IconButton Showcase
 local IconButtonSection = RowsTab:AddSection({
     Side = 2,
     Name = "IconButton Showcase",
     Icon = "mouse-pointer-2",
-    Subtext = "Icon-only & Icon+Text with proper horizontal layout",
+    Subtext = "Icon-only & centered Icon + Text buttons",
 })
 
-local ShowcasedBtn = IconButtonSection:AddIconButton("ShowcaseAction", {
+local ActionIconButton = IconButtonSection:AddIconButton("MainActionBtn", {
     Icon = "settings",
-    Text = "Settings Action",
-    Tooltip = "Click to execute action",
+    Text = "Settings Command",
+    Tooltip = "Executes settings subroutine",
     Func = function()
         Library:Notify({
-            Title = "IconButton Clicked",
-            Description = "Clean horizontal alignment inside button!",
+            Title = "IconButton Executed",
+            Description = "Clean horizontal alignment inside button container!",
             Time = 2,
+            Icon = "circle-check",
         })
     end,
 })
 
 IconButtonSection:AddIconButton({
     Icon = "lock",
-    Text = "Disabled State",
+    Text = "Locked Subroutine",
     Disabled = true,
-    DisabledTooltip = "Feature currently locked",
+    DisabledTooltip = "This command is currently locked by permissions.",
 })
+
+IconButtonSection:AddDivider("Dynamic Element Methods")
 
 IconButtonSection:AddButton({
     Text = "Toggle Button Disable State",
     Func = function()
-        ShowcasedBtn:SetDisabled(not ShowcasedBtn.Disabled)
+        ActionIconButton:SetDisabled(not ActionIconButton.Disabled)
     end,
 })
 
 IconButtonSection:AddButton({
-    Text = "Change Button Icon",
+    Text = "Cycle Button Icon & Text",
     Func = function()
-        local Icons = { "zap", "shield", "star", "settings" }
-        local RandomIcon = Icons[math.random(1, #Icons)]
-        ShowcasedBtn:SetIcon(RandomIcon)
-        ShowcasedBtn:SetText("Mode: " .. RandomIcon)
+        local Pool = {
+            { Icon = "zap", Text = "Turbo Mode" },
+            { Icon = "shield", Text = "Defense Matrix" },
+            { Icon = "star", Text = "Favorite Action" },
+            { Icon = "settings", Text = "Settings Command" },
+        }
+        local Pick = Pool[math.random(1, #Pool)]
+        ActionIconButton:SetIcon(Pick.Icon)
+        ActionIconButton:SetText(Pick.Text)
     end,
 })
 
 --============================================================================
--- TAB 4: DATA & TABLES
+-- TAB 4: DATA & TABLES (Data Tables, Priority Ordering, Inputs)
 --============================================================================
 local DataTab = Window:AddTab({ Name = "Data & Tables", Icon = "table" })
 
 local TableSection = DataTab:AddSection({
     Side = 1,
     Name = "Session Statistics Table",
-    Icon = "bar-chart-2",
+    Icon = "chart-column",
     IconStyle = "Tile",
-    Subtext = "Accurate header alignment and column spacing",
+    Subtext = "Clean column alignment, zero border bleed, row selection",
 })
 
 local SessionTable = TableSection:AddTable("StatsTable", {
     Text = "Match Overview",
-    Subtext = "Click any row to view details",
+    Subtext = "Click any row to inspect detail record",
     Columns = {
         { Name = "Metric", Width = "Auto" },
         { Name = "Score", Align = "Right", Width = 65 },
@@ -465,7 +616,7 @@ local SessionTable = TableSection:AddTable("StatsTable", {
     Rows = {
         { "Eliminations", 24, { Text = "MVP performance", Color = Color3.fromRGB(100, 255, 120) } },
         { "Deaths", 4, { Text = "Low casualties", Color = Color3.fromRGB(255, 160, 100) } },
-        { "Assists", 18, { Text = "High team synergy", Icon = "user-check" } },
+        { "Assists", 18, { Text = "High team synergy", Icon = "circle-check" } },
         { "Objective Time", 312, { Text = "Point captured", Icon = "clock" } },
     },
     Selectable = true,
@@ -481,24 +632,24 @@ local SessionTable = TableSection:AddTable("StatsTable", {
     end,
 })
 
-TableSection:AddButton({
-    Text = "Add Random Stat Row",
+local TableActionRow = TableSection:AddRow()
+TableActionRow:AddButton({
+    Text = "Add Stat Row",
     Func = function()
         local Metrics = { "Revives", "Headshots", "Damage Dealt", "Accuracy", "Heals" }
         local Pick = Metrics[math.random(1, #Metrics)]
         SessionTable:AddRow({ Pick, math.random(10, 500), "Logged event" })
     end,
 })
-
-TableSection:AddButton({
-    Text = "Sort by Score (Descending)",
+TableActionRow:AddButton({
+    Text = "Sort Score (Desc)",
     Func = function()
         SessionTable:Sort(2, true)
     end,
 })
 
 TableSection:AddButton({
-    Text = "Clear & Reset Stats",
+    Text = "Reset Table Rows",
     Func = function()
         SessionTable:SetRows({
             { "Eliminations", 0, "Fresh session" },
@@ -508,45 +659,70 @@ TableSection:AddButton({
     end,
 })
 
+-- Column 2: Reorderable Priority List & Text Inputs
 local PrioritySection = DataTab:AddSection({
     Side = 2,
     Name = "Execution Priority List",
     Icon = "list-ordered",
-    Subtext = "Draggable priority reordering",
+    Subtext = "Draggable reordering hierarchy",
 })
 
-local PriorityList = PrioritySection:AddPriorityList("TaskOrder", {
-    Text = "Routine Hierarchy",
+PrioritySection:AddPriorityList("TaskOrder", {
+    Text = "Subsystem Execution Order",
     Items = {
         { Id = "aimbot", Name = "Target Acquisition", Value = "Priority 1" },
         { Id = "wallcheck", Name = "Raycast Occlusion", Value = "Priority 2" },
         { Id = "esp", Name = "Viewport Overlay", Value = "Priority 3" },
-        { Id = "misc", Name = "Telemetry Ping", Value = "Priority 4" },
+        { Id = "telemetry", Name = "Telemetry Ping", Value = "Priority 4" },
     },
     Callback = function(Order)
-        print("[Astral] Reordered priority list:", table.concat(Order, " -> "))
+        print("[Astral] Reordered priority sequence:", table.concat(Order, " -> "))
     end,
 })
 
+local InputSection = DataTab:AddSection({
+    Side = 2,
+    Name = "Text Inputs",
+    Icon = "type",
+    Subtext = "Subtext alignment & validation",
+})
+
+InputSection:AddInput("TargetPlayerName", {
+    Text = "Target Username",
+    Subtext = "Subtext is tightly aligned with vertically centered icon",
+    Icon = "user",
+    Placeholder = "Enter player username...",
+    Callback = function(Value)
+        print("[Astral] Target username set to:", Value)
+    end,
+})
+
+InputSection:AddInput("PortNumber", {
+    Text = "Telemetry Port",
+    Numeric = true,
+    Placeholder = "e.g. 8080",
+    Default = "8080",
+})
+
 --============================================================================
--- TAB 5: DIALOGS & OVERLAYS
+-- TAB 5: DIALOGS & OVERLAYS (Modals, Buttons, Draggable Floating Windows)
 --============================================================================
 local OverlayTab = Window:AddTab({ Name = "Overlays", Icon = "app-window" })
 
 local DialogSection = OverlayTab:AddSection({
     Side = 1,
-    Name = "Solid Confirmation Dialog",
-    Icon = "alert-triangle",
+    Name = "Solid Confirmation Dialogs",
+    Icon = "triangle-alert",
     IconStyle = "Tile",
-    Subtext = "Opaque modal with backdrop scrim",
+    Subtext = "Opaque modals with functional action buttons",
 })
 
 DialogSection:AddButton({
-    Text = "Open Confirmation Dialog",
+    Text = "Open Confirmation Modal",
     Func = function()
         local Dialog = Window:AddDialog("ConfirmReset", {
-            Title = "Reset Configuration?",
-            Description = "Are you sure you want to reset all active settings back to their default values? This action cannot be reversed.",
+            Title = "Reset Configuration Profile?",
+            Description = "Are you sure you want to reset all active settings back to their defaults? This action cannot be undone.",
             AutoDismiss = false,
         })
 
@@ -563,9 +739,9 @@ DialogSection:AddButton({
                 Dialog:Dismiss()
                 Library:Notify({
                     Title = "Settings Reset",
-                    Description = "Configuration restored to defaults.",
+                    Description = "Configuration restored to initial defaults.",
                     Time = 2,
-                    Icon = "check-circle",
+                    Icon = "circle-check",
                 })
             end,
         })
@@ -573,23 +749,33 @@ DialogSection:AddButton({
 })
 
 DialogSection:AddButton({
-    Text = "Trigger Multi-Action Modal",
+    Text = "Open Save Profile Modal",
     Func = function()
-        local Dialog = Window:AddDialog("ActionModal", {
-            Title = "Save Preset",
-            Description = "Choose how you would like to save the current workspace profile.",
+        local Dialog = Window:AddDialog("SaveModal", {
+            Title = "Save Profile",
+            Description = "Choose how you would like to store your workspace configuration.",
             AutoDismiss = true,
         })
         Dialog:AddFooterButton("Cloud", {
             Text = "Save to Cloud",
             Callback = function()
-                Library:Notify({ Title = "Cloud Sync", Description = "Synced to cloud.", Time = 2 })
+                Library:Notify({
+                    Title = "Cloud Storage",
+                    Description = "Profile synced to remote storage.",
+                    Time = 2,
+                    Icon = "cloud",
+                })
             end,
         })
         Dialog:AddFooterButton("Local", {
-            Text = "Save Locally",
+            Text = "Save to Disk",
             Callback = function()
-                Library:Notify({ Title = "Local Save", Description = "Written to disk.", Time = 2 })
+                Library:Notify({
+                    Title = "Local Storage",
+                    Description = "Profile written to local file.",
+                    Time = 2,
+                    Icon = "hard-drive",
+                })
             end,
         })
     end,
@@ -599,41 +785,41 @@ local DraggableSection = OverlayTab:AddSection({
     Side = 2,
     Name = "Draggable Floating Window",
     Icon = "move",
+    Subtext = "Independent floating controls panel",
 })
 
 DraggableSection:AddButton({
-    Text = "Spawn Mini Window",
+    Text = "Spawn Quick Actions Mini Window",
     Func = function()
         local _Holder, _Raw, MenuContainer = Library:AddDraggableMenu("Quick Actions")
-        MenuContainer:AddLabel({ Text = "Independent floating panel" })
+        MenuContainer:AddLabel({ Text = "Independent floating tool panel" })
         MenuContainer:AddToggle("MiniFastHeal", { Text = "Rapid Regen", Default = true })
         MenuContainer:AddSlider("MiniBoost", { Text = "Boost Factor", Default = 50, Min = 0, Max = 100 })
         MenuContainer:AddButton({
             Text = "Ping Server",
             Func = function()
-                Library:Notify({ Title = "Ping", Description = "Latency: 28ms", Time = 1.5 })
+                Library:Notify({ Title = "Ping", Description = "Roundtrip latency: 24ms", Time = 1.5, Icon = "zap" })
             end,
         })
     end,
 })
 
 --============================================================================
--- TAB 6: SETTINGS & THEMES
+-- TAB 6: VISUAL SETTINGS & THEMES (ThemeManager, SaveManager, Transparency)
 --============================================================================
 local SettingsTab = Window:AddTab({ Name = "Settings", Icon = "settings" })
 
-local ThemeSection = SettingsTab:AddSection({
+local VisualSection = SettingsTab:AddSection({
     Side = 1,
     Name = "Visual Customization",
     Icon = "palette",
     IconStyle = "Tile",
-    Subtext = "Consistent panel transparency & smooth gradient blending",
+    Subtext = "Unified transparency, subtle dark slate blue gradient",
 })
 
--- Transparency control
-ThemeSection:AddSlider("UiTransparency", {
+VisualSection:AddSlider("WindowTransparency", {
     Text = "Window Transparency",
-    Subtext = "Consistent across TopBar, Sidebar, and Sections",
+    Subtext = "Synchronized across TopBar, Sidebar, and Sections",
     Default = 0,
     Min = 0,
     Max = 0.75,
@@ -643,7 +829,7 @@ ThemeSection:AddSlider("UiTransparency", {
     end,
 })
 
-ThemeSection:AddToggle("GradientToggle", {
+VisualSection:AddToggle("GradientToggle", {
     Text = "Smooth Ambient Gradient",
     Subtext = "Subtle dark slate blue undertone",
     Default = true,
@@ -652,7 +838,7 @@ ThemeSection:AddToggle("GradientToggle", {
     end,
 })
 
-ThemeSection:AddSlider("GradientAngle", {
+VisualSection:AddSlider("GradientAngle", {
     Text = "Gradient Angle",
     Default = 45,
     Min = 0,
@@ -665,8 +851,54 @@ ThemeSection:AddSlider("GradientAngle", {
     end,
 })
 
+local DisplaySection = SettingsTab:AddSection({
+    Side = 2,
+    Name = "Display & Scaling",
+    Icon = "sliders-horizontal",
+    Subtext = "Responsive UI scaling",
+})
+
+DisplaySection:AddSlider("UIScaleSlider", {
+    Text = "UI Scale Multiplier",
+    Default = Library:CalculateAutoDPIScale(1),
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Callback = function(Value)
+        Library.AutoDPIScale = false
+        Library:SetDPIScale(Value)
+    end,
+})
+
+DisplaySection:AddButton({
+    Text = "Reset to Automatic Scaling",
+    Func = function()
+        Library.AutoDPIScale = true
+        local AutoValue = Library:CalculateAutoDPIScale()
+        Library:SetDPIScale(AutoValue)
+        Library.Options.UIScaleSlider:SetValue(Library:CalculateAutoDPIScale(1))
+        Library:Notify({ Title = "Display", Description = "UI Scale now adapts to screen size automatically.", Time = 3 })
+    end,
+})
+
+-- Apply ThemeManager & SaveManager to Settings Tab
 ThemeManager:ApplyToTab(SettingsTab)
 SaveManager:BuildConfigSection(SettingsTab)
 
--- Print loaded build info
-print("[Astral] Showcase loaded cleanly • Build:", Library.BuildId or Library.VERSION or "Dev")
+-- Final notification confirming successful load
+Library:Notify({
+    Title = "Astral UI Loaded",
+    Description = "Reference showcase ready • All elements operational.",
+    Time = 3,
+    Icon = "circle-check",
+    IconColor = Color3.fromRGB(100, 255, 120),
+})
+
+print("[Astral] Comprehensive Showcase loaded successfully • Build:", Library.BuildId or Library.VERSION or "Dev")
+
+return {
+    Window = Window,
+    Library = Library,
+    SaveManager = SaveManager,
+    ThemeManager = ThemeManager,
+}

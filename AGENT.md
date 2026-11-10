@@ -228,3 +228,25 @@ When working on `Astral.lua`, observe these strict rules:
   4. Removed the redundant duplicate `ButtonPadding` and `IconSlot` instances from `Window:AddKeyTab`.
 - **Impact & Verification:**
   - Parsed cleanly with 0 errors through both `nightrains.robloxlsp` and `luau-lsp`. Eliminated dead code and duplicate instances.
+
+### 2026-11-10: Visual Harmonization, Interactive Stepper & Comprehensive Showcase Polish
+- **Rationale / Root Cause Analysis:**
+  1. **Table Column Boundary Bleed:** Large cell texts and rightmost columns overflowed beyond table card boundaries due to missing descendant clipping on `Card`/`HeaderRow` and unconstrained proportional width distribution in `ComputeWidths()`.
+  2. **TopBar Rounded Corner Gap:** `TopBackground` possessed a `UICorner` applying rounding to all four corners, exposing an unwanted background gap at the bottom edge between the top bar and sidebar/content area.
+  3. **Sidebar vs TopBar Gradient Mismatch:** The sidebar `Tabs` ScrollingFrame possessed an opaque background color that compounded with the sidebar frame, causing transparency and gradient brightness divergence between top bar and sidebar.
+  4. **Read-Only Stepper Limitation:** Steppers only allowed increment/decrement button clicks without direct numerical text input.
+  5. **Dialog Button Rendering Deficiencies:** Dialog buttons failed to display when defined via standard `Buttons = { ... }` (only checking `FooterButtons`) or when using `Text = "..."` (only checking `Title`), leaving modals buttonless.
+  6. **Dropdown Search Bar & Action Pill Target Area:** The search row and action pills (`All`/`Clear`) were slightly undersized for comfortable touch and desktop cursor targeting.
+  7. **Outdated & Incomplete Example Showcase:** The previous showcase script omitted key component methods, contained non-functional preset buttons, and referenced deprecated Lucide icon names.
+- **Resolutions:**
+  1. **Table Clipping & Constrained Distribution:** Enabled `ClipsDescendants = true` on `Card` and `HeaderRow`. Rewrote `ComputeWidths()` to isolate `Fill` column allocations, assign remaining container width to the final fill column, and apply an overflow shrink pass if cumulative column widths exceed the card bounds.
+  2. **TopFlatBottom Edge Square-off:** Added `TopFlatBottom` frame positioned at `UDim2.new(0, 0, 0, 48 - CornerRadius)` with size `(1, 0, 0, CornerRadius)` registered to `StyleTargets["panel"]` to square off the bottom corners of the top bar.
+  3. **Sidebar Transparency Unification:** Set `BackgroundTransparency = 1, BorderSizePixel = 0` on `Tabs` ScrollingFrame and added `Library.StyleTargets[Sidebar] = "panel"`, synchronizing sidebar and top bar transparency. Tuned `GetGradientColors()` base lerp factor to `0.25` with `0.04` accent tint.
+  4. **Direct Editable Stepper ValueBox:** Transformed `ValueLabel` into an editable `TextBox` with `ClearTextOnFocus = false`, focus stroke activation, input parsing with clamp and increment snapping on `FocusLost`, and an edit guard suppressing background `Display()` overwrite during active typing.
+  5. **Dialog Modal Button System:** Resolved button text via `ButtonInfo.Text or ButtonInfo.Title or tostring(ButtonIdx)`. Processed `Info.Buttons or Info.FooterButtons`. Triggered `Dialog:Resize()` automatically upon button registration or removal.
+  6. **Enhanced Dropdown Search & Actions:** Increased `DropdownBoxHeight` to 26px. Expanded action cluster reserve to 108px and button dimensions to `42x20` with 8px horizontal padding.
+  7. **Comprehensive Reference Showcase:** Rewrote `Example.lua` into an organized 904-line reference script across 6 categorized tabs (*General*, *Dropdowns*, *Rows & Combos*, *Data & Tables*, *Overlays*, *Settings*), fully wiring interactive preset management (`[+]`, `[pencil]`, `[trash-2]`), dynamic element method calls, and 100% verified Lucide v2 icons.
+- **Impact & Verification:**
+  - `Astral.lua` and `Example.lua` compile with **0 syntax errors** via `nightrains.robloxlsp`.
+  - Icon validation script confirmed all 63 Lucide iconography references are valid.
+  - Modals, tables, steppers, dropdowns, and transparency gradients operate with visual harmony and full interaction.

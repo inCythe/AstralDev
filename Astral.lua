@@ -1618,16 +1618,18 @@ Library.StyleFlushQueued = false
 
 function Library:GetGradientColors(): (Color3, Color3)
     local Scheme = Library.Scheme
-    local Start = Library:GetBetterColor(Scheme.BackgroundColor, -1)
+    local Base = Scheme.BackgroundColor
+    local Start = Library:GetBetterColor(Base, -1)
 
     local End = Scheme.GradientColor
-    if typeof(End) ~= "Color3" then
+    if typeof(End) == "Color3" then
+        End = Base:Lerp(End, 0.28)
+    else
         if Library.IsLightTheme then
-            End = Scheme.BackgroundColor:Lerp(Scheme.AccentColor, 0.05)
+            End = Base:Lerp(Scheme.AccentColor, 0.05)
         else
-            --// Smooth, subtle dark slate blue undertone that preserves dark themes \\--
-            local SubtleBlue = Color3.fromRGB(22, 30, 48)
-            End = Scheme.BackgroundColor:Lerp(SubtleBlue, 0.35):Lerp(Scheme.AccentColor, 0.05)
+            local SubtleBlue = Color3.fromRGB(20, 26, 40)
+            End = Base:Lerp(SubtleBlue, 0.25):Lerp(Scheme.AccentColor, 0.04)
         end
     end
 
@@ -1687,30 +1689,23 @@ local function ApplyRootStyle(Frame: GuiObject, Base: number)
     local Gradient = Library.StyleGradients[Frame]
     local Transparency = Library.WindowTransparency
 
-    if Library.GradientsEnabled and Gradient then
-        --// The gradient paints the fill: a white fill that the gradient colors, faded by the transparency. \\--
-        if Library.Registry[Frame] then
-            Library.Registry[Frame].BackgroundColor3 = nil
-        end
-        Frame.BackgroundColor3 = Color3.new(1, 1, 1)
-        Frame.BackgroundTransparency = Base
+    local Fill = Library.RootFill[Frame] or "BackgroundColor"
+    if Library.Registry[Frame] then
+        Library.Registry[Frame].BackgroundColor3 = Fill
+    end
+    local BaseColor = typeof(Fill) == "function" and Fill() or GetSchemeValue(Fill) or Library.Scheme.BackgroundColor
+    Frame.BackgroundColor3 = BaseColor
+    Frame.BackgroundTransparency = 1 - (1 - Base) * (1 - Transparency)
 
-        local Start, End = Library:GetGradientColors()
-        Gradient.Enabled = true
-        Gradient.Color = ColorSequence.new(Start, End)
-        Gradient.Rotation = Library.GradientRotation
-        Gradient.Transparency = NumberSequence.new(Transparency)
-    else
-        if Gradient then
+    if Gradient then
+        if Library.GradientsEnabled then
+            local Tint = Library.IsLightTheme and Color3.fromRGB(240, 243, 250) or Color3.fromRGB(215, 225, 245)
+            Gradient.Enabled = true
+            Gradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
+            Gradient.Rotation = Library.GradientRotation
+        else
             Gradient.Enabled = false
         end
-
-        local Fill = Library.RootFill[Frame]
-        if Fill ~= nil and Library.Registry[Frame] then
-            Library.Registry[Frame].BackgroundColor3 = Fill
-            Frame.BackgroundColor3 = typeof(Fill) == "function" and Fill() or GetSchemeValue(Fill)
-        end
-        Frame.BackgroundTransparency = 1 - (1 - Base) * (1 - Transparency)
     end
 end
 
@@ -6893,16 +6888,21 @@ do
             Gear.AnchorPoint = Vector2.new(1, 1)
             Gear.Position = UDim2.new(1, 0, 1, 0)
             Gear.Size = UDim2.fromOffset(21, 21)
+            Gear.ZIndex = (ParentObj.TopRow and ParentObj.TopRow.ZIndex or 1) + 2
             Gear.Parent = ParentObj.TopRow
         else
             Gear.AnchorPoint = Vector2.new(1, 0.5)
             Gear.Position = UDim2.new(1, -4, 0.5, 0) -- was missing → gear sat off-screen
+            Gear.ZIndex = (ParentObj.TextLabel and ParentObj.TextLabel.ZIndex or 1) + 2
             Gear.Parent = ParentObj.TextLabel
         end
 
+        local ParentHolder = ParentObj.Holder or ParentObj.Base or (ParentObj.TextLabel and ParentObj.TextLabel.Parent)
+        local TargetOrder = (ParentHolder and ParentHolder.LayoutOrder or 0) + 1
         local Panel = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = "BackgroundColor",
+            LayoutOrder = TargetOrder,
             Size = UDim2.new(1, 0, 0, 0),
             Visible = false,
             Parent = PanelParent,
@@ -8616,8 +8616,8 @@ do
             local IconTile
             local function CenterSliderIcon(SubHeight)
                 if IconTile then
-                    local SubtextTop = math.min(TopRowHeight, 16)
-                    local TotalH = HasSubtext and (SubtextTop + (SubHeight or 14)) or TopRowHeight
+                    local LabelH = HasSubtext and 16 or TopRowHeight
+                    local TotalH = HasSubtext and (LabelH + (SubHeight or 14)) or TopRowHeight
                     IconTile.AnchorPoint = Vector2.new(0, 0.5)
                     IconTile.Position = UDim2.fromOffset(0, TotalH / 2)
                 end
@@ -8629,7 +8629,7 @@ do
             end
 
             if HasSubtext then
-                local SubtextTop = math.min(TopRowHeight, 16)
+                local SubtextTop = 16
                 local SliderSubtext = New("TextLabel", {
                     BackgroundTransparency = 1,
                     FontFace = function()
@@ -8670,7 +8670,7 @@ do
                 TextSize = 14,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                TextYAlignment = Enum.TextYAlignment.Center,
+                TextYAlignment = HasSubtext and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
                 Parent = Holder,
             })
 
@@ -9699,13 +9699,57 @@ do
         end
 
         local MinusButton, MinusIcon, MinusStroke = MakeStepButton("minus", 1)
-        local ValueLabel = New("TextLabel", {
+        local ValueLabel = New("TextBox", {
+            BackgroundColor3 = "MainColor",
             BackgroundTransparency = 1,
+            ClearTextOnFocus = false,
             LayoutOrder = 2,
             Size = UDim2.fromOffset(Info.ValueWidth, 21),
+            Text = "",
+            TextColor3 = "FontColor",
             TextSize = 14,
+            TextEditable = not Stepper.Disabled,
             Parent = Controls,
         })
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+                Parent = ValueLabel,
+            })
+        )
+        local ValueLabelStroke = New("UIStroke", {
+            Color = "OutlineColor",
+            Transparency = 1,
+            Parent = ValueLabel,
+        })
+
+        ValueLabel.Focused:Connect(function()
+            if Stepper.Disabled then
+                ValueLabel:ReleaseFocus()
+                return
+            end
+            ValueLabel.Text = tostring(Stepper.Value)
+            ValueLabel.BackgroundTransparency = 0.5
+            ValueLabelStroke.Transparency = 0
+        end)
+
+        ValueLabel.FocusLost:Connect(function(Enter)
+            ValueLabel.BackgroundTransparency = 1
+            ValueLabelStroke.Transparency = 1
+            if Stepper.Disabled then
+                Stepper:Display()
+                return
+            end
+            local Raw = ValueLabel.Text
+            local Num = tonumber(Raw)
+            if Num then
+                Stepper:SetValue(Num)
+            else
+                Stepper:Display()
+            end
+        end)
+
         local PlusButton, PlusIcon, PlusStroke = MakeStepButton("plus", 3)
 
         function Stepper:GetText(): string
@@ -9731,8 +9775,11 @@ do
                 return
             end
 
-            ValueLabel.Text = Stepper:GetText()
+            if not ValueLabel:IsFocused() then
+                ValueLabel.Text = Stepper:GetText()
+            end
             ValueLabel.TextTransparency = Stepper.Disabled and 0.8 or 0
+            ValueLabel.TextEditable = not Stepper.Disabled
             Label.TextTransparency = Stepper.Disabled and 0.8 or 0
 
             local CanDecrease = not Stepper.Disabled and Stepper.Value > Stepper.Min
@@ -9984,6 +10031,7 @@ do
         local Card = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = "MainColor",
+            ClipsDescendants = true,
             LayoutOrder = 2,
             Size = UDim2.new(1, 0, 0, 0),
             Parent = Holder,
@@ -10006,6 +10054,7 @@ do
 
         local HeaderRow = New("Frame", {
             BackgroundColor3 = "BackgroundColor",
+            ClipsDescendants = true,
             LayoutOrder = 0,
             Size = UDim2.new(1, 0, 0, 22),
             Visible = Table.Header,
@@ -10128,6 +10177,7 @@ do
             local Inner = math.max(CardWidth - 16, 40)
             local Used, Weights = 0, 0
             local Result = {}
+            local FillIndices = {}
 
             for Index, Column in Table.Columns do
                 if typeof(Column.Width) == "number" then
@@ -10142,18 +10192,37 @@ do
                     Result[Index] = Width
                     Used += Width
                 else
+                    table.insert(FillIndices, Index)
                     Weights += Column.Weight
                 end
             end
 
             local Free = math.max(Inner - Used, 0)
-            for Index, Column in Table.Columns do
-                if Result[Index] == nil then
-                    local MinWidth = math.max(Measure(Column.Name, 12) + 16, 24)
-                    Result[Index] = math.max(
-                        math.floor(Free * Column.Weight / math.max(Weights, 1)),
-                        MinWidth
-                    )
+            local Allocated = Used
+            for i, Index in ipairs(FillIndices) do
+                local Column = Table.Columns[Index]
+                if i == #FillIndices then
+                    local Remaining = math.max(Inner - Allocated, 20)
+                    Result[Index] = Remaining
+                    Allocated += Remaining
+                else
+                    local MinWidth = math.max(Measure(Column.Name, 12) + 16, 20)
+                    local Share = math.floor(Free * Column.Weight / math.max(Weights, 1))
+                    local Width = math.max(Share, MinWidth)
+                    Result[Index] = Width
+                    Allocated += Width
+                end
+            end
+
+            if Allocated > Inner and #Table.Columns > 0 then
+                local Overflow = Allocated - Inner
+                for Index = #Table.Columns, 1, -1 do
+                    if Result[Index] and Result[Index] > 30 then
+                        local Sub = math.min(Result[Index] - 24, Overflow)
+                        Result[Index] -= Sub
+                        Overflow -= Sub
+                        if Overflow <= 0 then break end
+                    end
                 end
             end
 
@@ -11175,7 +11244,7 @@ do
         --// rather than a flex layout, so the box is exactly BoxWidth and nothing gets stretched. The box
         --// sits on the bottom edge, so an opened list always starts right under it, even when subtext
         --// makes the label side taller. \\--
-        local DropdownBoxHeight = 24
+        local DropdownBoxHeight = 26
         local TopRow = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
@@ -11387,7 +11456,7 @@ do
                 Parent = ActionRow,
             })
 
-            local ClusterReserve = Info.Multi and 96 or 0
+            local ClusterReserve = Info.Multi and 108 or 0
 
             if Info.Searchable then
                 local SearchIcon = New("ImageLabel", {
@@ -11442,7 +11511,7 @@ do
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundTransparency = 1,
                     Position = UDim2.fromScale(1, 0.5),
-                    Size = UDim2.fromOffset(0, 18),
+                    Size = UDim2.fromOffset(0, 20),
                     Parent = ActionRow,
                 })
                 New("UIListLayout", {
@@ -11459,7 +11528,7 @@ do
                         BackgroundColor3 = "BackgroundColor",
                         BackgroundTransparency = 0,
                         LayoutOrder = Order,
-                        Size = UDim2.fromOffset(36, 18),
+                        Size = UDim2.fromOffset(42, 20),
                         Text = BtnText,
                         TextColor3 = "FontColor",
                         TextSize = 12,
@@ -11478,8 +11547,8 @@ do
                         Parent = Btn,
                     })
                     New("UIPadding", {
-                        PaddingLeft = UDim.new(0, 7),
-                        PaddingRight = UDim.new(0, 7),
+                        PaddingLeft = UDim.new(0, 8),
+                        PaddingRight = UDim.new(0, 8),
                         Parent = Btn,
                     })
                     Btn.MouseEnter:Connect(function()
@@ -14873,7 +14942,17 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TopBackground,
             })
         )
+        local TopFlatBottom = New("Frame", {
+            Name = "TopFlatBottom",
+            BackgroundColor3 = "BackgroundColor",
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 0, 48 - WindowInfo.CornerRadius),
+            Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius),
+            ZIndex = MainFrame.ZIndex,
+            Parent = MainFrame,
+        })
         Library.StyleTargets[TopBackground] = "panel"
+        Library.StyleTargets[TopFlatBottom] = "panel"
 
         local TopBar = New("Frame", {
             Name = "TopBar",
@@ -15289,10 +15368,11 @@ function Library:CreateWindow(WindowInfo)
 
         Sidebar = New("Frame", {
             BackgroundColor3 = "BackgroundColor",
-            Position = UDim2.fromOffset(0, 49),
-            Size = UDim2.new(0, InitialLeftWidth, 1, -70),
+            Position = UDim2.fromOffset(0, 48),
+            Size = UDim2.new(0, InitialLeftWidth, 1, -68),
             Parent = MainFrame,
         })
+        Library.StyleTargets[Sidebar] = "panel"
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -15302,7 +15382,8 @@ function Library:CreateWindow(WindowInfo)
         DiscordBtnHeight = (WindowInfo.DiscordLink and typeof(WindowInfo.DiscordLink) == "string") and 36 or 0
         Tabs = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
             CanvasSize = UDim2.fromScale(0, 0),
             LayoutOrder = 1,
             ScrollBarThickness = 0,
@@ -18344,6 +18425,7 @@ function Library:CreateWindow(WindowInfo)
             if FooterButtonsList[ButtonIdx] then
                 FooterButtonsList[ButtonIdx].Container:Destroy()
                 FooterButtonsList[ButtonIdx] = nil
+                Dialog:Resize()
             end
         end
 
@@ -18444,7 +18526,7 @@ function Library:CreateWindow(WindowInfo)
             local BtnLabel = New("TextLabel", {
                 BackgroundTransparency = 1,
                 Size = UDim2.fromScale(1, 1),
-                Text = ButtonInfo.Title or ButtonIdx,
+                Text = ButtonInfo.Text or ButtonInfo.Title or tostring(ButtonIdx),
                 TextColor3 = TextColor,
                 TextSize = 14,
                 ZIndex = (ProgressBar and ProgressBar.ZIndex or TextBtn.ZIndex) + 1,
@@ -18519,9 +18601,11 @@ function Library:CreateWindow(WindowInfo)
             end
 
             FooterButtonsList[ButtonIdx] = ButtonWrap
+            Dialog:Resize()
         end
 
-        for BIdx, BInfo in Info.FooterButtons do
+        local InitialButtons = Info.Buttons or Info.FooterButtons or {}
+        for BIdx, BInfo in InitialButtons do
             if type(BIdx) == "number" and BInfo.Id then BIdx = BInfo.Id end
             Dialog:AddFooterButton(BIdx, BInfo)
         end
