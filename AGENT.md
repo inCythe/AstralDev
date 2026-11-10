@@ -214,3 +214,17 @@ When working on `Astral.lua`, observe these strict rules:
 
 - **Impact & Verification:**
   - All UI elements now exhibit pixel-perfect alignment, zero clipping or offset bugs, uniform transparency across all panels, and fully functional interactive examples.
+
+### 2026-11-10: Syntax & Structural Audit, Duplicate Code Pruning & Diagnostics Resolution
+- **Rationale / Root Cause Analysis:**
+  1. **Diagnostics Cascade & Parser Discrepancies:** `nightrains.robloxlsp` ("Luau Syntax Check") reported cascading syntax errors (`miss-end`, `miss-symbol`, `action-after-return`, etc.) stemming from transient unclosed edits and parser sensitivity around `return` before `elseif` in `Library:ApplyStyleTo`.
+  2. **Orphaned `Parent = Content` in `AddIconButton`:** When `AddIconButton` was refactored to remove the nested centering frame, `TextLabel.Parent` retained a stale reference to `Content` instead of `Base`.
+  3. **Dead Duplicate `Tab:AddSectionGroup` Definition:** A 260-line block inside `Window:AddTab` accidentally declared `Tab:AddSectionGroup` with `Funcs:AddSubSection` logic (referencing `Section.Container` instead of tab structures), which was immediately superseded by the actual `Tab:AddSectionGroup` definition below it.
+  4. **Duplicate Tab Elements in `Window:AddKeyTab`:** `ButtonPadding` (`UIPadding`) and `IconSlot` (`Frame`) were instantiated twice consecutively, orphaning the first `IconSlot` and attaching double padding to `TabButton`.
+- **Resolutions:**
+  1. Pruned early `return` inside `if Mode == "solid" then` in `Library:ApplyStyleTo`, ensuring a standard `if ... elseif ... else ... end` structure that parses unambiguously in all Luau/Lua engines.
+  2. Reparented `TextLabel` directly to `Base` in `Funcs:AddIconButton`.
+  3. Removed the ~260-line dead `Tab:AddSectionGroup` duplicate from `Window:AddTab`.
+  4. Removed the redundant duplicate `ButtonPadding` and `IconSlot` instances from `Window:AddKeyTab`.
+- **Impact & Verification:**
+  - Parsed cleanly with 0 errors through both `nightrains.robloxlsp` and `luau-lsp`. Eliminated dead code and duplicate instances.
