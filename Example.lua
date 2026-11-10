@@ -13,9 +13,9 @@ if AstralFolder and AstralFolder:FindFirstChild("Astral") then
     SaveManager  = require(AstralFolder:WaitForChild("Addons"):WaitForChild("SaveManager"))
     ThemeManager = require(AstralFolder:WaitForChild("Addons"):WaitForChild("ThemeManager"))
 else
-    Library      = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/Astral.lua"))()
-    SaveManager  = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/SaveManager.lua"))()
-    ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/Astral/refs/heads/main/addons/ThemeManager.lua"))()
+    Library      = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/Astral.lua"))()
+    SaveManager  = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/SaveManager.lua"))()
+    ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/inCythe/AstralDev/refs/heads/main/addons/ThemeManager.lua"))()
 end
 
 SaveManager:SetLibrary(Library)
