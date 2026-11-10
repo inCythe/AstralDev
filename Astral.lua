@@ -6891,13 +6891,10 @@ do
             Gear.ZIndex = (ParentObj.TopRow and ParentObj.TopRow.ZIndex or 1) + 2
             Gear.Parent = ParentObj.TopRow
         else
-            --// Parent to the full-width Holder (Button for Toggle, Frame for Label/Slider)
-            --// so the gear sits at the far right regardless of TextLabel's clipped width. \\\\--
-            local GearParent = ParentObj.Holder or ParentObj.TextLabel
             Gear.AnchorPoint = Vector2.new(1, 0.5)
-            Gear.Position = UDim2.new(1, -4, 0.5, 0)
-            Gear.ZIndex = (GearParent and GearParent.ZIndex or 1) + 2
-            Gear.Parent = GearParent
+            Gear.Position = UDim2.new(1, -4, 0.5, 0) -- was missing → gear sat off-screen
+            Gear.ZIndex = (ParentObj.TextLabel and ParentObj.TextLabel.ZIndex or 1) + 2
+            Gear.Parent = ParentObj.TextLabel
         end
 
         local ParentHolder = ParentObj.Holder or ParentObj.Base or (ParentObj.TextLabel and ParentObj.TextLabel.Parent)
@@ -11247,7 +11244,7 @@ do
         --// rather than a flex layout, so the box is exactly BoxWidth and nothing gets stretched. The box
         --// sits on the bottom edge, so an opened list always starts right under it, even when subtext
         --// makes the label side taller. \\--
-        local DropdownBoxHeight = 21
+        local DropdownBoxHeight = 26
         local TopRow = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
@@ -14933,7 +14930,6 @@ function Library:CreateWindow(WindowInfo)
         local TopBackground = New("Frame", {
             Name = "TopBackground",
             BackgroundColor3 = "BackgroundColor",
-            ClipsDescendants = true,
             Position = UDim2.fromScale(0, 0),
             Size = UDim2.new(1, 0, 0, 48),
             ZIndex = MainFrame.ZIndex,
@@ -14946,16 +14942,14 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TopBackground,
             })
         )
-        --// TopFlatBottom is no longer needed: TopBackground clips its own rounded
-        --// corners, and we place a flat fill inside it to cover the bottom gap.
         local TopFlatBottom = New("Frame", {
             Name = "TopFlatBottom",
             BackgroundColor3 = "BackgroundColor",
             BorderSizePixel = 0,
-            Position = UDim2.new(0, 0, 1, -WindowInfo.CornerRadius),
+            Position = UDim2.new(0, 0, 0, 48 - WindowInfo.CornerRadius),
             Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius),
             ZIndex = MainFrame.ZIndex,
-            Parent = TopBackground,  --// child of TopBackground, clipped by it
+            Parent = MainFrame,
         })
         Library.StyleTargets[TopBackground] = "panel"
         Library.StyleTargets[TopFlatBottom] = "panel"
@@ -15563,7 +15557,9 @@ function Library:CreateWindow(WindowInfo)
 
         Container = New("Frame", {
             AnchorPoint = Vector2.new(1, 0),
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
+            end,
             Name = "Container",
             Position = UDim2.new(1, 0, 0, 49),
             Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -70),
@@ -19097,7 +19093,6 @@ function Library:CreateWindow(WindowInfo)
             BorderSizePixel = 0,
             Size = UDim2.new(0, 300, 0, 400),
             Visible = false,
-            Active = true,  --// absorb input so clicks don't pass through
             ZIndex = Library.SearchOverlayZIndex,
 
             Parent = MainFrame,
@@ -20263,17 +20258,11 @@ function Library:CreateWindow(WindowInfo)
             end
         end)
 
-        --// Track touch start position so we only close on a quick tap, not a scroll drag. \\\\--
-        local TouchStartPos = nil
         Library:GiveSignal(UserInputService.InputBegan:Connect(function(Input, _Processed)
             if not SearchOverlay.Visible then return end
 
-            if Input.UserInputType == Enum.UserInputType.Touch then
-                TouchStartPos = Input.Position
-                return  --// don't close on touch start; wait for InputEnded
-            end
-
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if Input.UserInputType == Enum.UserInputType.MouseButton1
+                or Input.UserInputType == Enum.UserInputType.Touch then
                 local MousePos = UserInputService:GetMouseLocation()
                 local OvPos    = SearchOverlay.AbsolutePosition
                 local OvSize   = SearchOverlay.AbsoluteSize
@@ -20296,32 +20285,6 @@ function Library:CreateWindow(WindowInfo)
                 SearchBox.Text = ""
                 SearchBox:ReleaseFocus()
                 CloseOverlay()
-            end
-        end))
-
-        --// Close on quick touch tap (not drag/scroll). \\\\--
-        Library:GiveSignal(UserInputService.InputEnded:Connect(function(Input, _Processed)
-            if not SearchOverlay.Visible then return end
-
-            if Input.UserInputType == Enum.UserInputType.Touch and TouchStartPos then
-                local Delta = (Input.Position - TouchStartPos).Magnitude
-                TouchStartPos = nil
-                if Delta > 10 then return end  --// was a scroll, not a tap
-
-                local MousePos = Input.Position
-                local OvPos    = SearchOverlay.AbsolutePosition
-                local OvSize   = SearchOverlay.AbsoluteSize
-                local InOverlay = MousePos.X >= OvPos.X and MousePos.X <= OvPos.X + OvSize.X
-                    and MousePos.Y >= OvPos.Y and MousePos.Y <= OvPos.Y + OvSize.Y
-                local BxPos    = SearchBox.AbsolutePosition
-                local BxSize   = SearchBox.AbsoluteSize
-                local InBox    = MousePos.X >= BxPos.X and MousePos.X <= BxPos.X + BxSize.X
-                    and MousePos.Y >= BxPos.Y and MousePos.Y <= BxPos.Y + BxSize.Y
-
-                if not InOverlay and not InBox then
-                    SearchBox:ReleaseFocus()
-                    CloseOverlay()
-                end
             end
         end))
     end
