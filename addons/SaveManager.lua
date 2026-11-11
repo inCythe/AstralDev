@@ -946,7 +946,12 @@ do
                         local success, err = self:Delete(Selected)
                         if success then
                             self.CurrentConfig = nil
-                            self._ListKey = nil -- Forces dropdown refresh
+                            self._ListKey = nil 
+                            
+                            -- This automatically handles loading the next config, 
+                            -- OR creating a fresh default config and resetting everything if none are left.
+                            self:EnsureStartupConfig() 
+                            
                             self:RefreshDropdown()
                             self.Library:Notify({ Title = "SaveManager", Description = string.format("Deleted config %q.", Selected), Time = 3 })
                         else
