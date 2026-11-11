@@ -17456,12 +17456,38 @@ function Library:CreateWindow(WindowInfo)
             return Section
         end
 
-        function Tab:AddLeftSection(Name, IconName)
-            return Tab:AddSection({ Side = 1, Name = Name, IconName = IconName })
+        function Tab:AddLeftSection(NameOrInfo, IconName)
+            if typeof(NameOrInfo) == "table" then
+                local Info = NameOrInfo
+                Info.Side = 1
+                if Info.IconName == nil then
+                    Info.IconName = IconName
+                end
+                return Tab:AddSection(Info)
+            end
+
+            return Tab:AddSection({
+                Side = 1,
+                Name = NameOrInfo,
+                IconName = IconName,
+            })
         end
 
-        function Tab:AddRightSection(Name, IconName)
-            return Tab:AddSection({ Side = 2, Name = Name, IconName = IconName })
+        function Tab:AddRightSection(NameOrInfo, IconName)
+            if typeof(NameOrInfo) == "table" then
+                local Info = NameOrInfo
+                Info.Side = 2
+                if Info.IconName == nil then
+                    Info.IconName = IconName
+                end
+                return Tab:AddSection(Info)
+            end
+
+            return Tab:AddSection({
+                Side = 2,
+                Name = NameOrInfo,
+                IconName = IconName,
+            })
         end
 
         function Tab:AddSectionGroup(NameOrInfo)
