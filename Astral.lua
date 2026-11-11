@@ -16106,36 +16106,35 @@ function Library:CreateWindow(WindowInfo)
             WindowIcon.Visible = IsCompact
         end
 
-        for _, Header in Library.TabSectionHeaders do
-            Header.Label.Visible = not IsCompact
+        for _, Button in Library.TabButtons do
+            Button.Label.Visible = not IsCompact
+            Button.Label.TextSize = IsCompact and 0 or 14
+
             if IsCompact then
-                Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -4, 0.5, 0)
-                if Header.Icon then
-                    Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
-                    Header.Icon.Position = UDim2.new(0, 6, 0.5, 0)
-                end
+                -- Perfectly center the icon
+                Button.IconSlot.AnchorPoint = Vector2.new(0.5, 0.5)
+                Button.IconSlot.Position = UDim2.fromScale(0.5, 0.5)
+                Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
+                Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
+                Button.Padding.PaddingLeft = UDim.new(0, 0)
             else
-                Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -2, 0.5, 0)
-                if Header.Icon then
-                    Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
-                    Header.Icon.Position = UDim2.new(0, 10, 0.5, 0)
-                end
+                -- Restore to normal left-aligned with text
+                Button.IconSlot.AnchorPoint = Vector2.new(0, 0.5)
+                Button.IconSlot.Position = UDim2.new(0, 0, 0.5, 0)
+                Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
+                Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
+                Button.Padding.PaddingLeft = UDim.new(0, 20)
             end
 
-            if Header.IndentPaddings then
-                for _, Pad in Header.IndentPaddings do
-                    Pad.PaddingLeft = UDim.new(0, IsCompact and 0 or 6)
-                end
+            -- Hide the first letter fallback if a real icon exists
+            if Button.Icon then
+                Button.FirstLetter.Visible = false
+            else
+                Button.FirstLetter.Visible = IsCompact
             end
 
-            if Header.Separator then
-                Header.Separator.Visible = IsCompact and Header.GetHasFollower() and Header.GetIsOpen()
-            end
-
-            if Header.Tooltip then
-                Header.Tooltip.Disabled = not IsCompact
+            if Button.Tooltip then
+                Button.Tooltip.Disabled = not IsCompact
             end
         end
 
@@ -16162,11 +16161,21 @@ function Library:CreateWindow(WindowInfo)
         for _, Header in Library.TabSectionHeaders do
             Header.Label.Visible = not IsCompact
             if IsCompact then
-                Header.Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-                Header.Arrow.Position = UDim2.new(0.5, 0, 0.5, 0)
+                if Header.Icon then
+                    Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
+                    Header.Icon.Position = UDim2.new(0, 6, 0.5, 0)
+                end
+                Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
+                Header.Arrow.Position = UDim2.new(1, -6, 0.5, 0)
+                Header.Arrow.Visible = true
             else
+                if Header.Icon then
+                    Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
+                    Header.Icon.Position = UDim2.new(0, 10, 0.5, 0)
+                end
                 Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
                 Header.Arrow.Position = UDim2.new(1, -2, 0.5, 0)
+                Header.Arrow.Visible = true
             end
 
             if Header.IndentPaddings then
@@ -16342,19 +16351,23 @@ function Library:CreateWindow(WindowInfo)
         local function ApplySectionCompact(compact)
             HeaderLabel.Visible = not compact
             if compact then
-                ArrowImg.AnchorPoint = Vector2.new(1, 0.5)
-                ArrowImg.Position = UDim2.new(1, -4, 0.5, 0)
+                -- Icon on the Left
                 if SectionIconImg then
                     SectionIconImg.AnchorPoint = Vector2.new(0, 0.5)
                     SectionIconImg.Position = UDim2.new(0, 6, 0.5, 0)
                 end
-            else
+                -- Arrow on the Right
                 ArrowImg.AnchorPoint = Vector2.new(1, 0.5)
-                ArrowImg.Position = UDim2.new(1, -2, 0.5, 0)
+                ArrowImg.Position = UDim2.new(1, -6, 0.5, 0)
+                ArrowImg.Visible = true
+            else
                 if SectionIconImg then
                     SectionIconImg.AnchorPoint = Vector2.new(0, 0.5)
                     SectionIconImg.Position = UDim2.new(0, 10, 0.5, 0)
                 end
+                ArrowImg.AnchorPoint = Vector2.new(1, 0.5)
+                ArrowImg.Position = UDim2.new(1, -2, 0.5, 0)
+                ArrowImg.Visible = true
             end
         end
 
