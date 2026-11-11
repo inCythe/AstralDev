@@ -19952,57 +19952,19 @@ function Library:CreateWindow(WindowInfo)
             Btn.MouseLeave:Connect(function()
                 TweenService:Create(Btn, RowHoverTween, { BackgroundTransparency = 1 }):Play()
             end)
-            --// Activate on release, and only for a clean tap. Firing on press made touch-scrolling the
-            --// results select whatever row the finger landed on. The row's data is captured on press so a
-            --// rebuild that reuses this instance before release still activates the row that was pressed. \\--
-            local PressData, PressPos, PressCanvas
-            local Dragged = false
-            local TapSlop = 10
-            local DragConnection
-
-            local function IsPress(Input: InputObject)
-                return Input.UserInputType == Enum.UserInputType.MouseButton1
-                    or Input.UserInputType == Enum.UserInputType.Touch
-            end
-
+            
+            local PressData
             Btn.InputBegan:Connect(function(Input)
-                if not IsPress(Input) then
-                    return
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    PressData = Handle.Data
                 end
-                PressData = Handle.Data
-                PressPos = Vector2.new(Input.Position.X, Input.Position.Y)
-                PressCanvas = ScrollFrame.CanvasPosition
-                Dragged = false
-
-                if DragConnection then
-                    DragConnection:Disconnect()
-                end
-                DragConnection = UserInputService.InputChanged:Connect(function(ChangeInput)
-                    if ChangeInput.UserInputType == Enum.UserInputType.Touch
-                        or ChangeInput.UserInputType == Enum.UserInputType.MouseMovement then
-                        local CurrentPos = Vector2.new(ChangeInput.Position.X, ChangeInput.Position.Y)
-                        if (CurrentPos - PressPos).Magnitude > TapSlop then
-                            Dragged = true
-                        end
-                    end
-                end)
             end)
 
-            Btn.InputEnded:Connect(function(Input)
-                if not IsPress(Input) or not PressData then
-                    return
-                end
+            Btn.MouseButton1Click:Connect(function()
+                local Data = PressData or Handle.Data
+                PressData = nil
 
-                if DragConnection then
-                    DragConnection:Disconnect()
-                    DragConnection = nil
-                end
-
-                local Data = PressData
-                local Scrolled = PressCanvas and (ScrollFrame.CanvasPosition - PressCanvas).Magnitude > 4
-                PressData, PressPos, PressCanvas = nil, nil, nil
-
-                if not Dragged and not Scrolled and Data.OnActivate then
+                if Data and Data.OnActivate then
                     task.spawn(Data.OnActivate)
                 end
             end)
