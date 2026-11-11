@@ -1618,7 +1618,6 @@ end
 
 --// Window style: transparency + gradient. \\--
 Library.WindowTransparency = 0
-Library.OverlayTransparencyMultiplier = 0.6
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
 Library.GradientPanelTransparency = 0.1 --// panels are 90% opaque
@@ -1699,7 +1698,7 @@ end
 local function ApplyRootStyle(Frame: GuiObject, Base: number)
     local Gradient = Library.StyleGradients[Frame]
     
-    local Transparency = math.clamp(Library.WindowTransparency * (Library.OverlayTransparencyMultiplier or 0.6), 0, 0.85)
+    local Transparency = math.clamp(Library.WindowTransparency * 0.3, 0, 0.25)
 
     local Fill = Library.RootFill[Frame] or "BackgroundColor"
     if Library.Registry[Frame] then
@@ -1715,7 +1714,6 @@ local function ApplyRootStyle(Frame: GuiObject, Base: number)
             Gradient.Enabled = true
             Gradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
             Gradient.Rotation = Library.GradientRotation
-            
             Gradient.Transparency = NumberSequence.new(Transparency) 
         else
             Gradient.Enabled = false
@@ -21290,8 +21288,8 @@ Library:GiveSignal(Teams.ChildAdded:Connect(OnTeamChange))
 Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 function Library:BuildDefaultSettings(tab)
-    -- Full-width section at the top
-    local DisplaySection = tab:AddSection({ Name = "UI Settings", IconName = "monitor" })
+    -- Top Full-Width Section (ONLY UI Scale)
+    local DisplaySection = tab:AddSection({ Name = "UI Scale", IconName = "monitor" })
     
     DisplaySection:AddSlider("UIScaleSlider", {
         Text = "UI Scale", Default = Library:CalculateAutoDPIScale(1),
@@ -21310,51 +21308,46 @@ function Library:BuildDefaultSettings(tab)
         end
         Library:Notify({Title = "Display", Description = "UI Scale follows screen size automatically.", Time = 3})
     end })
-
-    DisplaySection:AddSlider("WindowCorners", {
-        Text = "Corner radius", Default = Library.CornerRadius or 6, Min = 0, Max = 20, Rounding = 0,
-        Callback = function(Value)
-            if Library.Window and Library.Window.SetCornerRadius then
-                Library.Window:SetCornerRadius(Value)
-            end
-        end,
-    })
-
-    DisplaySection:AddInput("WindowTitleInput", { 
-        Text = "Window Title", Default = "Astral UI", Finished = true, 
-        Callback = function(Value) if Library.Window then Library.Window:ChangeTitle(Value) end end 
-    })
-    
-    DisplaySection:AddToggle("CompactSidebar", { 
-        Text = "Compact sidebar", Default = false, 
-        Callback = function(Value) if Library.Window then Library.Window:SetCompact(Value) end end 
-    })
-    
-    DisplaySection:AddSlider("SidebarWidth", { 
-        Text = "Sidebar width", Default = 210, Min = 150, Max = 320, Rounding = 0, 
-        Callback = function(Value) if Library.Window then Library.Window:SetSidebarWidth(Value) end end 
-    })
-    
-    DisplaySection:AddToggle("WindowOnTop", { 
-        Text = "Always on top", Default = false, 
-        Callback = function(Value) if Library.Window then Library.Window:SetAlwaysOnTop(Value) end end 
-    })
 end
 
--- Master function that builds everything
 function Library:BuildAllSettings(tab, ThemeManager, SaveManager)
     -- 1. Top Full-Width Section
     self:BuildDefaultSettings(tab)
 
-    -- 2. Bottom Left Section
+    -- 2. Bottom Left Section (Theme)
     if ThemeManager and typeof(ThemeManager.ApplyToTab) == "function" then
         ThemeManager:ApplyToTab(tab)
     end
 
-    -- 3. Bottom Right Section
+    -- 3. Bottom Right Section (Config)
     if SaveManager and typeof(SaveManager.BuildConfigSection) == "function" then
         SaveManager:BuildConfigSection(tab)
     end
+
+    -- 4. Window Settings (Below Config)
+    local WindowSection = tab:AddRightSection("Window Settings", "app-window")
+    WindowSection:AddInput("WindowTitleInput", { 
+        Text = "Window Title", Default = "Astral UI", Finished = true, 
+        Callback = function(Value) if Library.Window then Library.Window:ChangeTitle(Value) end end 
+    })
+    WindowSection:AddSlider("WindowCorners", {
+        Text = "Corner radius", Default = Library.CornerRadius or 6, Min = 0, Max = 20, Rounding = 0,
+        Callback = function(Value)
+            if Library.Window then Library.Window:SetCornerRadius(Value) end
+        end,
+    })
+    WindowSection:AddSlider("SidebarWidth", { 
+        Text = "Sidebar width", Default = 210, Min = 150, Max = 320, Rounding = 0, 
+        Callback = function(Value) if Library.Window then Library.Window:SetSidebarWidth(Value) end end 
+    })
+    WindowSection:AddToggle("CompactSidebar", { 
+        Text = "Compact sidebar", Default = false, 
+        Callback = function(Value) if Library.Window then Library.Window:SetCompact(Value) end end 
+    })
+    WindowSection:AddToggle("WindowOnTop", { 
+        Text = "Always on top", Default = false, 
+        Callback = function(Value) if Library.Window then Library.Window:SetAlwaysOnTop(Value) end end 
+    })
 end
 
 getgenv().Library = Library

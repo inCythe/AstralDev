@@ -929,6 +929,35 @@ do
             NameInput:SetValue("")
         end })
 
+        section:AddButton({ Text = "Delete config", Risky = true, Func = function()
+            local Selected = self.CurrentConfig
+            if not Selected then
+                self.Library:Notify({ Title = "SaveManager", Description = "No config selected.", Time = 3 })
+                return
+            end
+            
+            self.Library.Window:AddDialog("DeleteConfig_" .. Selected, {
+                Title = "Delete config",
+                Description = string.format("Are you sure you want to delete %q? This cannot be undone.", Selected),
+                Icon = "trash-2",
+                FooterButtons = {
+                    Cancel = { Title = "Cancel", Variant = "Secondary", Order = 1 },
+                    Delete = { Title = "Delete", Variant = "Destructive", Order = 2, Callback = function(dialog)
+                        local success, err = self:Delete(Selected)
+                        if success then
+                            self.CurrentConfig = nil
+                            self._ListKey = nil -- Forces dropdown refresh
+                            self:RefreshDropdown()
+                            self.Library:Notify({ Title = "SaveManager", Description = string.format("Deleted config %q.", Selected), Time = 3 })
+                        else
+                            self.Library:Notify({ Title = "SaveManager", Description = "Failed to delete: " .. tostring(err), Time = 4 })
+                        end
+                        dialog:Dismiss()
+                    end }
+                }
+            })
+        end })
+
         section:AddLabel({ Text = "Changes are saved to the selected config automatically.", DoesWrap = true })
 
         self:SetIgnoreIndexes({ "SaveManager_Scope", "SaveManager_ConfigList", "SaveManager_ConfigName" })
