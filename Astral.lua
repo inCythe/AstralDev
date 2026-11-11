@@ -19958,6 +19958,7 @@ function Library:CreateWindow(WindowInfo)
             local PressData, PressPos, PressCanvas
             local Dragged = false
             local TapSlop = 10
+            local DragConnection
 
             local function IsPress(Input: InputObject)
                 return Input.UserInputType == Enum.UserInputType.MouseButton1
@@ -19972,19 +19973,29 @@ function Library:CreateWindow(WindowInfo)
                 PressPos = Vector2.new(Input.Position.X, Input.Position.Y)
                 PressCanvas = ScrollFrame.CanvasPosition
                 Dragged = false
-            end)
 
-            Btn.InputChanged:Connect(function(Input)
-                if PressData and PressPos
-                    and (Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.MouseMovement)
-                    and (Vector2.new(Input.Position.X, Input.Position.Y) - PressPos).Magnitude > TapSlop then
-                    Dragged = true
+                if DragConnection then
+                    DragConnection:Disconnect()
                 end
+                DragConnection = UserInputService.InputChanged:Connect(function(ChangeInput)
+                    if ChangeInput.UserInputType == Enum.UserInputType.Touch
+                        or ChangeInput.UserInputType == Enum.UserInputType.MouseMovement then
+                        local CurrentPos = Vector2.new(ChangeInput.Position.X, ChangeInput.Position.Y)
+                        if (CurrentPos - PressPos).Magnitude > TapSlop then
+                            Dragged = true
+                        end
+                    end
+                end)
             end)
 
             Btn.InputEnded:Connect(function(Input)
                 if not IsPress(Input) or not PressData then
                     return
+                end
+
+                if DragConnection then
+                    DragConnection:Disconnect()
+                    DragConnection = nil
                 end
 
                 local Data = PressData
