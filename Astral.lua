@@ -16317,8 +16317,8 @@ function Library:CreateWindow(WindowInfo)
         local HeaderLabel = New("TextLabel", {
             AnchorPoint = Vector2.new(0, 0.5),
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, SectionIcon and 24 or 0, 0.5, 0),
-            Size = UDim2.new(1, -(SectionIcon and 40 or 16), 0, 14),
+            Position = UDim2.new(0, SectionIcon and 32 or 0, 0.5, 0),
+            Size = UDim2.new(1, -(SectionIcon and 48 or 16), 0, 14),
             Text = SectionName:upper(),
             TextSize = 10,
             TextTransparency = 0.4,
