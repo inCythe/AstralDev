@@ -21288,6 +21288,7 @@ Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange))
 
 Library:GiveSignal(Teams.ChildAdded:Connect(OnTeamChange))
 Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
+
 function Library:BuildDefaultSettings(tab)
     -- Full-width section at the top
     local DisplaySection = tab:AddSection({ Name = "UI Settings", IconName = "monitor" })
