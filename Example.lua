@@ -494,6 +494,70 @@ VideoSec:AddButton({ Text = "Play / Pause", Func = function()
     if DemoVideo.Playing then DemoVideo:Pause() else DemoVideo:Play() end
 end })
 
+-- Rich text: every text field renders markup (<b> <i> <u> <s> <font color/size>), including titles,
+-- subtext, tooltips, dropdown values, table cells, list names, notifications, dialogs and the footer.
+local RichSec = DispTab:AddRightSection('<font color="rgb(66,135,245)">Rich</font> <b>text</b> <i>everywhere</i>', "highlighter")
+RichSec:AddLabel('<b>Bold</b> <i>italic</i> <u>underline</u> <s>strike</s> <font color="rgb(120,220,120)">color</font> <font size="16">size</font>')
+RichSec:AddToggle("RichToggle", {
+    Text = '<b>Toggle</b> with <font color="rgb(255,200,80)">color</font>',
+    Subtext = '<i>Subtext</i> supports <b>markup</b> too',
+    Icon = "bold", Tooltip = '<b>Tooltip</b> with <font color="rgb(120,220,120)">markup</font>',
+})
+RichSec:AddSlider("RichSlider", {
+    Text = '<font color="rgb(255,120,120)">Health</font> slider', Default = 60, Min = 0, Max = 100,
+    Suffix = ' <font color="rgb(255,200,80)">HP</font>',
+})
+RichSec:AddStepper("RichStepper", { Text = '<b>Stepper</b> <i>label</i>', Default = 3, Min = 0, Max = 9, Suffix = '<font color="rgb(120,220,120)">x</font>' })
+
+local RarityColors = { Common = "170,170,170", Rare = "80,160,255", Epic = "190,110,255" }
+RichSec:AddDropdown("RichDropdown", {
+    Text = '<b>Rarity</b> dropdown', Values = { "Common", "Rare", "Epic" }, Default = "Rare",
+    FormatDisplayValue = function(Value) return string.format('<font color="rgb(%s)">%s</font>', RarityColors[Value] or "255,255,255", Value) end,
+    FormatListValue = function(Value) return string.format('<font color="rgb(%s)"><b>%s</b></font>', RarityColors[Value] or "255,255,255", Value) end,
+})
+RichSec:AddInput("RichInput", { Text = '<b>Input</b> <font color="rgb(120,220,120)">label</font>', Placeholder = "Typed text stays plain" })
+RichSec:AddDivider('<font color="rgb(66,135,245)">Divider</font> text')
+RichSec:AddTable("RichTable", {
+    Text = '<b>Table</b> title', Subtext = '<i>cells and headers too</i>',
+    Columns = { "<b>Item</b>", { Name = '<font color="rgb(255,200,80)">Price</font>', Align = "Right", Width = 70 } },
+    Rows = {
+        { '<font color="rgb(120,220,120)">Potion</font>', "<b>25</b>" },
+        { "<i>Elixir</i>", '<font color="rgb(255,120,120)">80</font>' },
+    },
+    Header = true, Striped = true,
+})
+RichSec:AddPriorityList("RichList", {
+    Text = '<b>Priority</b> <i>list</i>',
+    Items = {
+        { Id = "a", Name = '<font color="rgb(255,120,120)">Urgent</font> task', Value = "<b>On</b>" },
+        { Id = "b", Name = "<i>Normal</i> task", Value = "Off" },
+    },
+})
+RichSec:AddButton({
+    Text = '<b>Notify</b> with <font color="rgb(120,220,120)">markup</font>',
+    Tooltip = '<b>Rich</b> button tooltip',
+    Func = function()
+        Library:Notify({
+            Title = '<font color="rgb(120,220,120)"><b>Rich</b></font> title',
+            Description = 'Description with <i>italic</i> and <font color="rgb(255,200,80)">color</font>', Time = 4,
+        })
+    end,
+})
+RichSec:AddButton({
+    Text = '<b>Dialog</b> with <font color="rgb(255,200,80)">markup</font>',
+    Func = function()
+        Window:AddDialog("RichDialog", {
+            Title = '<font color="rgb(66,135,245)">Rich</font> <b>dialog</b>',
+            Description = 'Titles and descriptions support <i>markup</i>, <u>underline</u> and <font color="rgb(255,120,120)">color</font>.',
+            FooterButtons = { Confirm = { Title = "<b>Nice</b>", Variant = "Primary" } },
+        })
+    end,
+})
+RichSec:AddButton({
+    Text = "Add a rich footer item",
+    Func = function() Window:AddFooterItem("Right", '<font color="rgb(120,220,120)">rich</font> <b>footer</b>') end,
+})
+
 --============================================================================
 -- ACTIONS  -  buttons, rows, icon buttons, key pickers, color pickers
 --============================================================================

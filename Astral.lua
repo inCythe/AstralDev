@@ -983,7 +983,16 @@ local function Trim(Text: string)
 end
 --// Fuzzy Search \\--
 --// Lowercases ASCII plus Latin-1, Greek and Cyrillic capitals, which string.lower() leaves untouched. \\--
+--// Rich text markup is not part of what the user sees, so search/matching works on the visible text. \\--
+local function StripRichText(Text: string): string
+    if not Text:find("<", 1, true) then
+        return Text
+    end
+    return (Text:gsub("<[%a/][^>]*>", ""))
+end
+
 local function LowerText(Text: string): string
+    Text = StripRichText(Text)
     return (Text:lower():gsub("[\195\206\208][\128-\191]", function(Char)
         local Code = utf8.codepoint(Char)
         if (Code >= 0xC0 and Code <= 0xDE and Code ~= 0xD7) or (Code >= 0x391 and Code <= 0x3AB) or (Code >= 0x410 and Code <= 0x42F) then
@@ -11744,7 +11753,11 @@ do
                 end
 
                 if typeof(PlayerValue) == "Instance" and PlayerValue:IsA("Player") then
-                    ValueImage = { Url = string.format("rbxthumb://type=AvatarHeadShot&id=%s&w=48&h=48", tostring(PlayerValue.UserId)) }
+                    ValueImage = {
+                        Url = string.format("rbxthumb://type=AvatarHeadShot&id=%s&w=48&h=48", tostring(PlayerValue.UserId)),
+                        ImageRectOffset = Vector2.zero,
+                        ImageRectSize = Vector2.zero,
+                    }
                 end
             end
 
@@ -12095,8 +12108,8 @@ do
                 if Entry.ValueImage then
                     Row.Image.Visible = true
                     Row.Image.Image = Entry.ValueImage.Url
-                    Row.Image.ImageRectOffset = Entry.ValueImage.ImageRectOffset
-                    Row.Image.ImageRectSize = Entry.ValueImage.ImageRectSize
+                    Row.Image.ImageRectOffset = Entry.ValueImage.ImageRectOffset or Vector2.zero
+                    Row.Image.ImageRectSize = Entry.ValueImage.ImageRectSize or Vector2.zero
                     Row.Button.Size = UDim2.new(1, -18, 0, ItemHeight)
                     Row.Button.Position = UDim2.fromOffset(18, 0)
                 else
@@ -16547,7 +16560,7 @@ function Library:CreateWindow(WindowInfo)
                 BackgroundTransparency = 1,
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
-                Text = Name:sub(1, 1):upper(),
+                Text = StripRichText(Name):sub(1, 1):upper(),
                 TextSize = 14,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
@@ -17997,7 +18010,7 @@ function Library:CreateWindow(WindowInfo)
                 BackgroundTransparency = 1,
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
-                Text = Name:sub(1, 1):upper(),
+                Text = StripRichText(Name):sub(1, 1):upper(),
                 TextSize = 14,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
@@ -19803,11 +19816,20 @@ function Library:CreateWindow(WindowInfo)
         local Overscan = 8
         local LastRenderFirst, LastRenderLast, LastRenderTotal = nil, nil, nil
 
+        local function HasRichTags(TextValue: string): boolean
+            return TextValue:find("<[%a/][^>]*>") ~= nil
+        end
+
+        --// Text the author marked up keeps its markup (no match highlight: it cannot be mapped into the tags).
+        --// Plain rows are shown with RichText off, so they must not be escaped. \\--
         local function BuildDisplayText(TextValue: string, Highlight: string?, Lower: string?): string
+            if HasRichTags(TextValue) then
+                return TextValue
+            end
             if Highlight and Highlight ~= "" then
                 return HighlightMatch(TextValue, Highlight, Lower)
             end
-            return EscapeRichText(TextValue)
+            return TextValue
         end
 
         local function CreatePooledRow()
@@ -20002,7 +20024,7 @@ function Library:CreateWindow(WindowInfo)
             Lbl.Text = Cfg.DisplayText or Cfg.Text
             --// Plain rows skip the RichText parser entirely; only match
             --// highlights pay for tag parsing. \\--
-            Lbl.RichText = Cfg.HasHighlight == true
+            Lbl.RichText = Cfg.HasHighlight == true or Cfg.HasRichText == true
             Lbl.FontFace = Cfg.IsTab and RebuildTabFont or RebuildRowFont
             Lbl.TextSize = Cfg.IsTab and 13 or 12
             Lbl.TextTransparency = Cfg.IsTab and 0 or (Cfg.IsElement and 0.35 or 0.1)
@@ -20281,6 +20303,7 @@ function Library:CreateWindow(WindowInfo)
 
                 Cfg.DisplayText = BuildDisplayText(Cfg.Text, QueryHighlight, LowerCached(Cfg.Text))
                 Cfg.HasHighlight = QueryHighlight ~= nil
+                Cfg.HasRichText = HasRichTags(Cfg.Text)
                 Cfg.BadgeText = BadgeText
                 Cfg.BadgeShadeStep = BadgeShadeStep
                 Cfg.RowColorFn = ColorFn
