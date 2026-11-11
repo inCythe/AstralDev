@@ -90,7 +90,7 @@ local NotifyTab   = Advanced:AddTab({ Name = "Notifications", Icon = "bell",    
 local CustomTab   = Advanced:AddCustomTab({ Name = "Custom",  Icon = "layout-dashboard",     Description = "Your own GUI inside a tab" })
 local KeyTab      = Window:AddKeyTab({ Name = "Key",        Icon = "key" })
 
-local SettingsTab = Settings:AddTab({ Name = "Settings", Icon = "settings", Description = "Theme, configs, window options" })
+local SettingsTab = Settings:AddTab({ Name = "Settings", Icon = "settings", Description = "UI, themes, and configs" })
 
 --============================================================================
 -- FORM CONTROLS  -  toggles / checkboxes / sliders / inputs
@@ -1089,77 +1089,9 @@ NotifySec2:AddDropdown("NotifySideDropdown", {
 --============================================================================
 -- SETTINGS  -  display, theme, configs, window options
 --============================================================================
-local DisplaySection = SettingsTab:AddSection({ Name = "Display", IconName = "monitor" })
-DisplaySection:AddSlider("UIScaleSlider", {
-    Text = "UI Scale", Default = Library:CalculateAutoDPIScale(1),
-    Min = 1, Max = 10, Rounding = 1,
-    Callback = function(Value)
-        Library.AutoDPIScale = false
-        Library:SetDPIScale(Value)
-    end,
-})
-DisplaySection:AddButton({ Text = "Reset to automatic scaling", Func = function()
-    Library.AutoDPIScale = true
-    Library:SetDPIScale(Library:CalculateAutoDPIScale())
-    Options.UIScaleSlider:SetValue(Library:CalculateAutoDPIScale(1))
-    Say("Display", "UI Scale follows screen size automatically.", 3)
-end })
 
--- Theme and save managers
-ThemeManager:ApplyToTab(SettingsTab)
-SaveManager:BuildConfigSection(SettingsTab)
-
-local WindowSection = SettingsTab:AddRightSection("Window", "app-window")
-WindowSection:AddSlider("WindowTransparency", {
-    Text = "Transparency", Default = 0, Min = 0, Max = 0.85, Rounding = 2,
-    Callback = function(Value) Window:SetTransparency(Value) end,
-})
-WindowSection:AddToggle("WindowGradient", { Text = "Gradient", Default = true, Callback = function(Value) Window:SetGradient(Value) end })
-WindowSection:AddSlider("WindowCorners", {
-    Text = "Corner radius", Default = 6, Min = 0, Max = 20, Rounding = 0,
-    Callback = function(Value) Window:SetCornerRadius(Value) end,
-})
-WindowSection:AddDropdown("TitleAlignment", {
-    Text = "Title alignment", Values = { "Left", "Center", "Right" }, Default = "Center",
-    Callback = function(Value) Window:SetTitleAlignment(Value) end,
-})
-WindowSection:AddToggle("CompactSidebar", { Text = "Compact sidebar", Default = false, Callback = function(Value) Window:SetCompact(Value) end })
-WindowSection:AddSlider("SidebarWidth", {
-    Text = "Sidebar width", Default = 210, Min = 150, Max = 320, Rounding = 0,
-    Callback = function(Value) Window:SetSidebarWidth(Value) end,
-})
-WindowSection:AddToggle("WindowSnapping", { Text = "Snap to screen edges", Default = false, Callback = function(Value) Window:SetSnapping(Value) end })
-WindowSection:AddToggle("WindowOnTop", { Text = "Always on top", Default = false, Callback = function(Value) Window:SetAlwaysOnTop(Value) end })
-WindowSection:AddToggle("WindowAnimations", {
-    Text = "Window animations", Default = false,
-    Callback = function(Value)
-        Window:SetAnimations({ ToggleWindow = Value, TabSwitch = Value, Dropdown = Value, KeyPicker = Value })
-    end,
-})
-WindowSection:AddToggle("AutoHideUI", {
-    Text = "Auto Hide UI", Default = false,
-    Tooltip = "When enabled, the UI stays hidden on startup until opened manually.",
-    Callback = function(Value) Library.AutoShow = not Value end,
-})
-
-local TextSection = SettingsTab:AddRightSection("Window text and footer", "type")
-TextSection:AddInput("WindowTitleInput", { Text = "Title", Default = "Astral UI", Finished = true, Callback = function(Value) Window:ChangeTitle(Value) end })
-TextSection:AddInput("WindowSubtitleInput", { Text = "Subtitle", Default = "Reference build", Finished = true, Callback = function(Value) Window:SetSubtitle(Value) end })
-TextSection:AddSlider("WindowTitleSize", { Text = "Title size", Default = 15, Min = 10, Max = 28, Rounding = 0, Callback = function(Value) Window:SetTitleSize(Value) end })
-TextSection:AddInput("FooterInput", { Text = "Footer (middle)", Default = "RightControl toggles the UI", Finished = true, Callback = function(Value) Window:SetFooter(Value) end })
-TextSection:AddButton({ Text = "Add footer items", Func = function()
-    Window:AddFooterItem("Left", { Text = "clickable", Callback = function() Say("Footer", "Footer item", 1.5) end })
-    Window:AddFooterItem("Right", "plain text")
-end })
-TextSection:AddButton({ Text = "Clear footer items", Func = function() Window:ClearFooter() end })
-TextSection:AddButton({ Text = "Show tab info", Func = function() Window:ShowTabInfo("Custom info", "Set from script") end })
-TextSection:AddButton({ Text = "Hide tab info", Func = function() Window:HideTabInfo() end })
-TextSection:AddButton({ Text = "Copy Discord invite", Func = function()
-    if setclipboard then
-        setclipboard("https://discord.gg/astral")
-        Library:Notify({ Title = "Discord", Description = "Invite copied to clipboard.", Icon = "copy", Time = 3 })
-    end
-end })
+-- This single line builds the Top UI section, Bottom-Left Themes, and Bottom-Right Configs
+Library:BuildAllSettings(SettingsTab, ThemeManager, SaveManager)
 
 --============================================================================
 -- STARTUP NOTIFICATION

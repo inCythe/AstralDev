@@ -445,6 +445,7 @@ local Templates = {
     TextBox = {
         BorderSizePixel = 0,
         FontFace = "Font",
+        RichText = true,
         PlaceholderColor3 = function()
             local H, S, V = Library.Scheme.FontColor:ToHSV()
             return Color3.fromHSV(H, S, V / 2)
@@ -1617,6 +1618,7 @@ end
 
 --// Window style: transparency + gradient. \\--
 Library.WindowTransparency = 0
+Library.OverlayTransparencyMultiplier = 0.6
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
 Library.GradientPanelTransparency = 0.1 --// panels are 90% opaque
@@ -1696,7 +1698,8 @@ end
 
 local function ApplyRootStyle(Frame: GuiObject, Base: number)
     local Gradient = Library.StyleGradients[Frame]
-    local Transparency = Library.WindowTransparency
+    
+    local Transparency = math.clamp(Library.WindowTransparency * (Library.OverlayTransparencyMultiplier or 0.6), 0, 0.85)
 
     local Fill = Library.RootFill[Frame] or "BackgroundColor"
     if Library.Registry[Frame] then
@@ -1712,6 +1715,8 @@ local function ApplyRootStyle(Frame: GuiObject, Base: number)
             Gradient.Enabled = true
             Gradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
             Gradient.Rotation = Library.GradientRotation
+            
+            Gradient.Transparency = NumberSequence.new(Transparency) 
         else
             Gradient.Enabled = false
         end
@@ -5535,11 +5540,12 @@ do
 
         KeyPicker.Modifiers = VerifyModifiers(KeyPicker.Modifiers)
 
-        local PickerGapTrim = -1
+        local AddonOffset = 0
+        if ParentObj.Addons then AddonOffset = #ParentObj.Addons * 22 end
         local Picker = New("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
             BackgroundColor3 = "MainColor",
-            Position = UDim2.new(1, -PickerGapTrim, 0.5, 0),
+            Position = UDim2.new(1, -(AddonOffset + 1), 0.5, 0),
             Size = UDim2.fromOffset(18, 18),
             Text = KeyPicker.Value,
             TextSize = 14,
@@ -5846,7 +5852,7 @@ do
             Mode = Mode or KeyPicker.Mode
 
             local IsKeyValid, KeyCode = pcall(function()
-                if Key == "None" then
+                if Key == "None" or Key == "Unknown" then
                     Key = nil
                     return nil
                 end
@@ -6163,12 +6169,13 @@ do
         }
         ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib = ColorPicker.Value:ToHSV()
 
-        local SwatchGapTrim = -1
+        local AddonOffset = 0
+        if ParentObj.Addons then AddonOffset = #ParentObj.Addons * 22 end
         local Holder = New("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
             BackgroundColor3 = ColorPicker.Value,
             ClipsDescendants = true,
-            Position = UDim2.new(1, -SwatchGapTrim, 0.5, 0),
+            Position = UDim2.new(1, -(AddonOffset + 1), 0.5, 0),
             Size = UDim2.fromOffset(18, 18),
             Text = "",
             Parent = ToggleLabel,
@@ -10380,7 +10387,7 @@ do
                 TextSize = IsHeader and 12 or 13,
                 TextTransparency = IsHeader and 0.4 or 0.15,
                 TextTruncate = Enum.TextTruncate.AtEnd,
-                TextXAlignment = AlignMap[IsHeader and Column.HeaderAlign or Column.Align] or Enum.TextXAlignment.Left,
+                TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = Cell,
             }
             if typeof(Color) == "Color3" then
@@ -21281,6 +21288,73 @@ Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange))
 
 Library:GiveSignal(Teams.ChildAdded:Connect(OnTeamChange))
 Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
+function Library:BuildDefaultSettings(tab)
+    -- Full-width section at the top
+    local DisplaySection = tab:AddSection({ Name = "UI Settings", IconName = "monitor" })
+    
+    DisplaySection:AddSlider("UIScaleSlider", {
+        Text = "UI Scale", Default = Library:CalculateAutoDPIScale(1),
+        Min = 1, Max = 10, Rounding = 1,
+        Callback = function(Value)
+            Library.AutoDPIScale = false
+            Library:SetDPIScale(Value)
+        end,
+    })
+    
+    DisplaySection:AddButton({ Text = "Reset to automatic scaling", Func = function()
+        Library.AutoDPIScale = true
+        Library:SetDPIScale(Library:CalculateAutoDPIScale())
+        if Library.Options.UIScaleSlider then
+            Library.Options.UIScaleSlider:SetValue(Library:CalculateAutoDPIScale(1))
+        end
+        Library:Notify({Title = "Display", Description = "UI Scale follows screen size automatically.", Time = 3})
+    end })
+
+    DisplaySection:AddSlider("WindowCorners", {
+        Text = "Corner radius", Default = Library.CornerRadius or 6, Min = 0, Max = 20, Rounding = 0,
+        Callback = function(Value)
+            if Library.Window and Library.Window.SetCornerRadius then
+                Library.Window:SetCornerRadius(Value)
+            end
+        end,
+    })
+
+    DisplaySection:AddInput("WindowTitleInput", { 
+        Text = "Window Title", Default = "Astral UI", Finished = true, 
+        Callback = function(Value) if Library.Window then Library.Window:ChangeTitle(Value) end end 
+    })
+    
+    DisplaySection:AddToggle("CompactSidebar", { 
+        Text = "Compact sidebar", Default = false, 
+        Callback = function(Value) if Library.Window then Library.Window:SetCompact(Value) end end 
+    })
+    
+    DisplaySection:AddSlider("SidebarWidth", { 
+        Text = "Sidebar width", Default = 210, Min = 150, Max = 320, Rounding = 0, 
+        Callback = function(Value) if Library.Window then Library.Window:SetSidebarWidth(Value) end end 
+    })
+    
+    DisplaySection:AddToggle("WindowOnTop", { 
+        Text = "Always on top", Default = false, 
+        Callback = function(Value) if Library.Window then Library.Window:SetAlwaysOnTop(Value) end end 
+    })
+end
+
+-- Master function that builds everything
+function Library:BuildAllSettings(tab, ThemeManager, SaveManager)
+    -- 1. Top Full-Width Section
+    self:BuildDefaultSettings(tab)
+
+    -- 2. Bottom Left Section
+    if ThemeManager and typeof(ThemeManager.ApplyToTab) == "function" then
+        ThemeManager:ApplyToTab(tab)
+    end
+
+    -- 3. Bottom Right Section
+    if SaveManager and typeof(SaveManager.BuildConfigSection) == "function" then
+        SaveManager:BuildConfigSection(tab)
+    end
+end
 
 getgenv().Library = Library
 
