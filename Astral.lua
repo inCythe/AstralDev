@@ -17145,7 +17145,7 @@ function Library:CreateWindow(WindowInfo)
             local PopHeightConn
 
             function Section:Resize()
-                SectionSeparatorLine.Visible = not Section.Folded and not Section.PoppedOut
+                SectionSeparatorLine.Visible = not Section.Folded
 
                 if Section.PoppedOut then
                     SectionHolder.Size = UDim2.new(1, 0, 0, HeaderHeight + 28)
@@ -18309,7 +18309,9 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = Library.DialogContentZIndex + 1,
             Parent = DialogOverlay,
         })
-        Library.StyleTargets[DialogFrame] = "solid"
+        --// A style root (like the other overlays) so the dialog follows the window's transparency and
+        --// gradient; it used to be forced fully opaque. \\--
+        Library:AddStyleRoot(DialogFrame)
         table.insert(
             Library.Corners,
             New("UICorner", {
