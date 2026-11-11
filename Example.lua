@@ -35,6 +35,37 @@ local function Say(Title, Description, Time)
     Library:Notify({ Title = Title, Description = Description, Time = Time or 2 })
 end
 
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+
+-- Create the BlurEffect
+local blurEffect = Instance.new("BlurEffect")
+blurEffect.Name = "AstralBackgroundBlur"
+blurEffect.Size = 0 -- Start with 0 (no blur)
+blurEffect.Parent = Lighting
+
+-- Configuration
+local BLUR_INTENSITY = 16 -- Change this to make the blur stronger/weaker (max is 56)
+local TWEEN_TIME = 0.3     -- How fast the blur fades in/out
+
+-- Hook into Astral's toggle function
+local originalToggle = Library.Toggle
+function Library:Toggle(Value)
+    -- Call the original toggle function first
+    originalToggle(self, Value)
+
+    -- Animate the blur based on the new UI state
+    local targetSize = self.Toggled and BLUR_INTENSITY or 0
+    TweenService:Create(blurEffect, TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = targetSize
+    }):Play()
+end
+
+-- Check initial state (in case AutoShow = true)
+if Library.Toggled then
+    blurEffect.Size = BLUR_INTENSITY
+end
+
 --============================================================================
 -- WINDOW
 --============================================================================
