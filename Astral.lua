@@ -16114,14 +16114,14 @@ function Library:CreateWindow(WindowInfo)
 
                 Button.IconSlot.AnchorPoint = Vector2.new(0.5, 0.5)
                 Button.IconSlot.Position = UDim2.fromScale(0.5, 0.5)
-                Button.IconSlot.Size = UDim2.new(0, 16, 1, 0)
+                Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
                 Button.Padding.PaddingLeft = UDim.new(0, 4)
             else
 
                 Button.IconSlot.AnchorPoint = Vector2.new(0, 0.5)
                 Button.IconSlot.Position = UDim2.new(0, 0, 0.5, 0)
-                Button.IconSlot.Size = UDim2.new(0, 16, 1, 0)
+                Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
                 Button.Padding.PaddingLeft = UDim.new(0, 20)
             end
@@ -16522,7 +16522,7 @@ function Library:CreateWindow(WindowInfo)
                 AnchorPoint = IsCompact and Vector2.new(0.5, 0.5) or Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
                 Position = IsCompact and UDim2.fromScale(0.5, 0.5) or UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.new(0, 16, 1, 0),
+                Size = UDim2.new(0, 20, 1, 0),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
                 Parent = TabButton,
             })
@@ -16537,7 +16537,7 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = 0.5,
                     Position = UDim2.fromScale(0.5, 0.5),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromOffset(16, 16),
+                    Size = UDim2.fromOffset(20, 20),
                     Parent = IconSlot,
                 })
             end
@@ -16548,7 +16548,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
                 Text = Name:sub(1, 1):upper(),
-                TextSize = 13,
+                TextSize = 14,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
                 Parent = IconSlot,
@@ -16557,10 +16557,10 @@ function Library:CreateWindow(WindowInfo)
             TabLabel = New("TextLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0, 24, 0.5, 0),
-                Size = UDim2.new(1, -24, 0, 18),
+                Position = UDim2.new(0, 28, 0.5, 0),
+                Size = UDim2.new(1, -28, 0, 18),
                 Text = Name,
-                TextSize = 13,
+                TextSize = 14,
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextWrapped = true,
@@ -17972,7 +17972,7 @@ function Library:CreateWindow(WindowInfo)
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.new(0, 16, 1, 0),
+                Size = UDim2.new(0, 20, 1, 0),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
                 Parent = TabButton,
             })
@@ -17987,7 +17987,7 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = 0.5,
                     Position = UDim2.fromScale(0.5, 0.5),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromOffset(16, 16),
+                    Size = UDim2.fromOffset(20, 20),
                     Parent = IconSlot,
                 })
             end
@@ -17998,7 +17998,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromScale(1, 1),
                 Text = Name:sub(1, 1):upper(),
-                TextSize = 13,
+                TextSize = 14,
                 TextTransparency = 0.5,
                 Visible = not Icon and IsCompact,
                 Parent = IconSlot,
@@ -18007,10 +18007,10 @@ function Library:CreateWindow(WindowInfo)
             TabLabel = New("TextLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0, 24, 0.5, 0),
-                Size = UDim2.new(1, -24, 0, 18),
+                Position = UDim2.new(0, 28, 0.5, 0),
+                Size = UDim2.new(1, -28, 0, 18),
                 Text = Name,
-                TextSize = 13,
+                TextSize = 14,
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextWrapped = true,
@@ -19902,11 +19902,46 @@ function Library:CreateWindow(WindowInfo)
             Btn.MouseLeave:Connect(function()
                 TweenService:Create(Btn, RowHoverTween, { BackgroundTransparency = 1 }):Play()
             end)
-            --// Down instead of Click: fires even if a rebuild reuses this
-            --// instance between press and release. \\--
-            Btn.MouseButton1Down:Connect(function()
-                local Data = Handle.Data
-                if Data and Data.OnActivate then
+            --// Activate on release, and only for a clean tap. Firing on press made touch-scrolling the
+            --// results select whatever row the finger landed on. The row's data is captured on press so a
+            --// rebuild that reuses this instance before release still activates the row that was pressed. \\--
+            local PressData, PressPos, PressCanvas
+            local Dragged = false
+            local TapSlop = 10
+
+            local function IsPress(Input: InputObject)
+                return Input.UserInputType == Enum.UserInputType.MouseButton1
+                    or Input.UserInputType == Enum.UserInputType.Touch
+            end
+
+            Btn.InputBegan:Connect(function(Input)
+                if not IsPress(Input) then
+                    return
+                end
+                PressData = Handle.Data
+                PressPos = Vector2.new(Input.Position.X, Input.Position.Y)
+                PressCanvas = ScrollFrame.CanvasPosition
+                Dragged = false
+            end)
+
+            Btn.InputChanged:Connect(function(Input)
+                if PressData and PressPos
+                    and (Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.MouseMovement)
+                    and (Vector2.new(Input.Position.X, Input.Position.Y) - PressPos).Magnitude > TapSlop then
+                    Dragged = true
+                end
+            end)
+
+            Btn.InputEnded:Connect(function(Input)
+                if not IsPress(Input) or not PressData then
+                    return
+                end
+
+                local Data = PressData
+                local Scrolled = PressCanvas and (ScrollFrame.CanvasPosition - PressCanvas).Magnitude > 4
+                PressData, PressPos, PressCanvas = nil, nil, nil
+
+                if not Dragged and not Scrolled and Data.OnActivate then
                     task.spawn(Data.OnActivate)
                 end
             end)

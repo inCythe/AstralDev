@@ -79,7 +79,7 @@ local SettingsTab = Settings:AddTab({ Name = "Settings",   Icon = "settings",   
 --============================================================================
 -- FORM CONTROLS
 --============================================================================
-local ToggleSec = FormTab:AddLeftSection("Toggles")
+local ToggleSec = FormTab:AddLeftSection("Toggles", "toggle-left")
 local BasicToggle = ToggleSec:AddToggle("BasicToggle", {
     Text = "Basic Toggle",
     Default = false,
@@ -108,7 +108,7 @@ ToggleSec:AddButton({ Text = "Toggle DisabledToggle", Func = function()
     T:SetDisabled(not T.Disabled)
 end })
 
-local CheckSec = FormTab:AddRightSection("Checkboxes")
+local CheckSec = FormTab:AddRightSection("Checkboxes", "square-check")
 CheckSec:AddCheckbox("BasicCheckbox", { Text = "Checkbox style", Default = false })
 CheckSec:AddCheckbox("RiskyCheckbox", { Text = "Risky checkbox", Default = false, Risky = true })
 CheckSec:AddToggle("ForceCheckboxGlobal", {
@@ -118,7 +118,7 @@ CheckSec:AddToggle("ForceCheckboxGlobal", {
 })
 
 -- Sliders
-local SliderSec = FormTab:AddLeftSection("Sliders")
+local SliderSec = FormTab:AddLeftSection("Sliders", "sliders-horizontal")
 local SpeedSlider = SliderSec:AddSlider("SpeedSlider", {
     Text = "Speed", Default = 16, Min = 0, Max = 100, Rounding = 0, Suffix = " studs/s",
 })
@@ -138,7 +138,7 @@ local SliderGear = SliderSec:AddSlider("GearSlider", {
 SliderGear:AddToggle("GearSliderToggle", { Text = "Setting inside gear", Default = false })
 
 -- Dropdowns
-local DropSec = FormTab:AddRightSection("Dropdowns")
+local DropSec = FormTab:AddRightSection("Dropdowns", "chevrons-up-down")
 local ModeDrop = DropSec:AddDropdown("ModeDropdown", {
     Text = "Select Mode",
     Values = { "Option A", "Option B", "Option C" },
@@ -161,7 +161,7 @@ local DropGear = DropSec:AddDropdown("DropGearDemo", {
 }):AddSettings()
 DropGear:AddToggle("DropGearToggle", { Text = "Setting inside gear", Default = true })
 
-local RolesSec = FormTab:AddLeftSection("Multi-select")
+local RolesSec = FormTab:AddLeftSection("Multi-select", "list-checks")
 local RolesDrop = RolesSec:AddDropdown("RolesDropdown", {
     Text = "Roles",
     Values = { "Admin", "Moderator", "Editor", "Viewer", "Contributor", "Reviewer", "Support", "Analyst" },
@@ -176,7 +176,7 @@ RolesSec:AddButton({ Text = "Get active roles", Func = function()
 end })
 
 -- Inputs
-local InputSec = FormTab:AddRightSection("Inputs")
+local InputSec = FormTab:AddRightSection("Inputs", "text-cursor-input")
 local NameInput = InputSec:AddInput("NameInput", { Text = "Your Name", Placeholder = "Type here..." })
 InputSec:AddInput("NumericInput",    { Text = "Numeric",  Numeric = true, Finished = true, Placeholder = "123" })
 InputSec:AddInput("EmptyResetInput", { Text = "Falls back when empty", Default = "DefaultValue", AllowEmpty = false, EmptyReset = "---" })
@@ -195,13 +195,13 @@ InputSec:AddInput("VerifiedInput", {
 --============================================================================
 -- DISPLAY
 --============================================================================
-local DivSec = DispTab:AddLeftSection("Dividers")
+local DivSec = DispTab:AddLeftSection("Dividers", "separator-horizontal")
 DivSec:AddLabel("Above the divider")
 DivSec:AddDivider("Labelled")
 DivSec:AddDivider()
 DivSec:AddDivider({ Text = "Custom margins", MarginTop = 8, MarginBottom = 8 })
 
-local LabelSec = DispTab:AddRightSection("Labels")
+local LabelSec = DispTab:AddRightSection("Labels", "tag")
 local CounterLabel = LabelSec:AddLabel('Counter: <font color="rgb(66,135,245)">0</font>')
 LabelSec:AddLabel({
     Text = "<b>Bold</b> · <i>Italic</i> · <u>Underline</u> · <font color=\"rgb(120,220,120)\">Colored</font>",
@@ -215,7 +215,7 @@ LabelSec:AddButton({ Text = "Increment counter", Func = function()
 end })
 
 -- Progress
-local ProgSec = DispTab:AddLeftSection("Progress")
+local ProgSec = DispTab:AddLeftSection("Progress", "loader")
 local HealthBar = ProgSec:AddProgressBar("HealthBar", { Text = "Health", Value = 100, Min = 0, Max = 100, Suffix = " HP" })
 ProgSec:AddButton({ Text = "Deal 25 damage", Func = function()
     HealthBar:SetValue(math.max(0, HealthBar.Value - 25))
@@ -223,7 +223,7 @@ end })
 ProgSec:AddProgressBar("CompactBar", { Text = "Compact", Value = 60, Min = 0, Max = 100, Compact = true, HideMax = true })
 
 -- Image / Viewport
-local ImageSec = DispTab:AddRightSection("Media")
+local ImageSec = DispTab:AddRightSection("Media", "image")
 local DemoImage = ImageSec:AddImage("DemoImage", { Image = "sparkles", Height = 90, ScaleType = Enum.ScaleType.Fit })
 ImageSec:AddButton({ Text = "Cycle image", Func = function()
     DemoImage:SetImage("star")
@@ -237,7 +237,7 @@ DemoPart.Color = Color3.fromRGB(66, 135, 245); DemoPart.Parent = DemoModel
 local DemoViewport = ImageSec:AddViewport("DemoViewport", { Object = DemoModel, Height = 130, Interactive = true, AutoFocus = true })
 ImageSec:AddButton({ Text = "Focus viewport", Func = function() DemoViewport:Focus() end })
 
-local VideoSec = DispTab:AddLeftSection("Video")
+local VideoSec = DispTab:AddLeftSection("Video", "video")
 VideoSec:AddLabel({ Text = "Provide a real rbxassetid:// video asset to see playback.", DoesWrap = true })
 local DemoVideo = VideoSec:AddVideo("DemoVideo", { Video = "rbxassetid://0", Height = 100 })
 VideoSec:AddButton({ Text = "Play / Pause", Func = function()
@@ -247,7 +247,7 @@ end })
 --============================================================================
 -- ACTIONS
 --============================================================================
-local BtnSec = ActTab:AddLeftSection("Buttons")
+local BtnSec = ActTab:AddLeftSection("Buttons", "mouse-pointer-click")
 local MainButton = BtnSec:AddButton({
     Text = "Click Me",
     Func = function() Library:Notify({ Title = "Clicked", Time = 2 }) end,
@@ -261,7 +261,7 @@ BtnSec:AddButton({
 })
 
 -- Key Picker
-local KeySec = ActTab:AddRightSection("Key Pickers")
+local KeySec = ActTab:AddRightSection("Key Pickers", "keyboard")
 local BoundToggle = KeySec:AddToggle("BoundToggle", { Text = "Keybound toggle" })
 local BoundKey = BoundToggle:AddKeyPicker("BoundToggleKey", {
     Text = "Toggle Key", Default = "F1", Mode = "Toggle",
@@ -276,7 +276,7 @@ PressLabel:AddKeyPicker("PressKey", {
 })
 
 -- Color Picker
-local ColorSec = ActTab:AddLeftSection("Color Pickers")
+local ColorSec = ActTab:AddLeftSection("Color Pickers", "palette")
 local AccentLabel = ColorSec:AddLabel("Accent color")
 local AccentPicker = AccentLabel:AddColorPicker("AccentColor", {
     Default = Color3.fromRGB(66, 135, 245), Title = "Pick a color",
@@ -297,29 +297,29 @@ SectionsTab:AddSection({ Name = "Full-Width", IconName = "maximize" }):AddLabel(
     Text = "No Side set -- this section spans the full tab width.", DoesWrap = true,
 })
 
-local LayoutLeft  = SectionsTab:AddLeftSection("Left Column")
+local LayoutLeft  = SectionsTab:AddLeftSection("Left Column", "panel-left")
 LayoutLeft:AddToggle("LeftToggle", { Text = "Left toggle", Default = true })
 LayoutLeft:AddSlider("LeftSlider", { Text = "Value", Default = 50, Min = 0, Max = 100 })
 
-local LayoutRight = SectionsTab:AddRightSection("Right Column")
+local LayoutRight = SectionsTab:AddRightSection("Right Column", "panel-right")
 LayoutRight:AddToggle("RightToggle", { Text = "Right toggle" })
 LayoutRight:AddSlider("RightSlider", { Text = "Value", Default = 50, Min = 0, Max = 100 })
 
 --============================================================================
 -- NESTED & CONDITIONALS
 --============================================================================
-local Parent = NestedTab:AddSection("Sub-sections")
-local SubA = Parent:AddSubSection({ Name = "Nested (open)", DefaultOpen = true })
+local Parent = NestedTab:AddSection("Sub-sections", "folder-tree")
+local SubA = Parent:AddSubSection({ Name = "Nested (open)", IconName = "folder-open", DefaultOpen = true })
 SubA:AddToggle("SubToggleA", { Text = "Nested toggle" })
 
-local SubB = Parent:AddSubSection({ Name = "Nested (closed)", DefaultOpen = false })
+local SubB = Parent:AddSubSection({ Name = "Nested (closed)", IconName = "folder", DefaultOpen = false })
 SubB:AddLabel("Click the header above.")
 
 local GroupBox = NestedTab:AddSectionGroup({ Name = "Grouped tabs" })
 GroupBox:AddTab("Page One", "list"):AddLabel("Content for Page One.")
 GroupBox:AddTab("Page Two", "settings"):AddLabel("Content for Page Two.")
 
-local CondParent = NestedTab:AddSection("Conditional Group")
+local CondParent = NestedTab:AddSection("Conditional Group", "git-fork")
 local Driver = CondParent:AddToggle("ShowExtra", { Text = "Show extra options", Default = false })
 local ExtraGroup = CondParent:AddConditionalGroup()
 ExtraGroup:AddSlider("ExtraSlider", { Text = "Only visible when ShowExtra is ON", Default = 50, Min = 0, Max = 100 })
@@ -328,7 +328,7 @@ ExtraGroup:SetupDependencies({ { Driver, true } })
 --============================================================================
 -- DIALOGS
 --============================================================================
-local DialogSec = DialogTab:AddSection("Modal Dialogs")
+local DialogSec = DialogTab:AddSection("Modal Dialogs", "message-square")
 
 DialogSec:AddButton({ Text = "Confirm Dialog", Func = function()
     Window:AddDialog("ConfirmDialog", {
@@ -385,7 +385,7 @@ end })
 --============================================================================
 -- OVERLAYS
 --============================================================================
-local OverlaySec = OverlayTab:AddLeftSection("Draggable Overlays")
+local OverlaySec = OverlayTab:AddLeftSection("Draggable Overlays", "layers")
 
 OverlaySec:AddButton({ Text = "Spawn label", Func = function() Library:AddDraggableLabel("Drag me") end })
 OverlaySec:AddButton({ Text = "Spawn button", Func = function()
@@ -426,7 +426,7 @@ OverlaySec:AddButton({ Text = "Remove all overlays", Risky = true,
     Func = function() Library:RemoveAllOverlays() end })
 
 -- Context menu
-local CtxSec = OverlayTab:AddRightSection("Context Menu")
+local CtxSec = OverlayTab:AddRightSection("Context Menu", "menu")
 local CtxAnchor = Instance.new("TextButton")
 CtxAnchor.Size = UDim2.new(1, 0, 0, 36)
 CtxAnchor.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
