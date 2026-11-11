@@ -3351,15 +3351,6 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         Parent = Layer,
     })
     Library:AddToRegistry(Thumb, { BackgroundColor3 = "AccentColor" })
-    --// Same corner radius as every other element (`CornerRadius / 2`), so the
-    --// thumb reads as part of the UI instead of a capsule. \\--
-    table.insert(
-        Library.Corners,
-        New("UICorner", {
-            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-            Parent = Thumb,
-        })
-    )
 
     --// Faint rounded trough behind the thumb. It fades in with the thumb, so
     --// the control reads as a scrollbar while it is active and disappears
@@ -3375,13 +3366,6 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         Parent = Layer,
     })
     Library:AddToRegistry(Track, { BackgroundColor3 = "AccentColor" })
-    table.insert(
-        Library.Corners,
-        New("UICorner", {
-            CornerRadius = UDim.new(0, Library.CornerRadius / 2),
-            Parent = Track,
-        })
-    )
 
     local State = {
         Scroll = Scroll,
@@ -11670,7 +11654,7 @@ do
                     local Btn = New("TextButton", {
                         AutomaticSize = Enum.AutomaticSize.X,
                         BackgroundColor3 = "BackgroundColor",
-                        BackgroundTransparency = 0,
+                        BackgroundTransparency = 1,
                         LayoutOrder = Order,
                         Size = UDim2.fromOffset(42, 20),
                         Text = BtnText,
@@ -11686,10 +11670,6 @@ do
                             Parent = Btn,
                         })
                     )
-                    New("UIStroke", {
-                        Color = "OutlineColor",
-                        Parent = Btn,
-                    })
                     New("UIPadding", {
                         PaddingLeft = UDim.new(0, 8),
                         PaddingRight = UDim.new(0, 8),
@@ -15553,6 +15533,7 @@ function Library:CreateWindow(WindowInfo)
             CanvasSize = UDim2.fromScale(0, 0),
             LayoutOrder = 1,
             ScrollBarThickness = 0,
+            ScrollBarImageTransparency = 1,
             Size = UDim2.new(1, 0, 1, -DiscordBtnHeight),
             Parent = Sidebar,
         })
