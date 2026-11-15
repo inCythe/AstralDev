@@ -1812,8 +1812,9 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
     elseif Mode == "root" then
         ApplyRootStyle(Inst, Base)
     elseif Mode == "main" then
-        --// The window's own fill is painted by the gradient overlay when gradients are on. \\--
-        Inst.BackgroundTransparency = Gradients and 1 or Transparency
+        --// The window's own fill is painted by the gradient overlay when gradients are on.
+        --// When Transparency is 0 the window stays opaque; the gradient overlay adds tint.
+        Inst.BackgroundTransparency = Gradients and math.max(Transparency, 0.02) or Transparency
     elseif Mode == "panel" then
         local Show = Gradients and (1 - Library.GradientPanelTransparency) or 1
         Inst.BackgroundTransparency = 1 - (1 - Base) * Show * (1 - Transparency)
@@ -2025,7 +2026,7 @@ function Library:CalculateAutoBaseScale(): number
     local ScaleY = AvailableY / WinHeight
     local FitScale = math.min(ScaleX, ScaleY)
 
-    return math.clamp(FitScale, 0.25, 1)
+    return math.clamp(FitScale, 0.1, 1)
 end
 
 function Library:CalculateAutoDPIScale(Rounding: number?): number
@@ -2540,18 +2541,6 @@ function Library:StyleTabButton(TabButton: TextButton, ButtonPadding: UIPadding?
     local Style = Library.TabButtonsStyle
     if not Style then
         return
-    end
-
-    --// Active tabs get a soft accent surface instead of being indistinguishable
-    --// from idle tabs. Registered as a function so theme changes keep it in sync.
-    if Library.Registry[TabButton] then
-        Library.Registry[TabButton].BackgroundColor3 = function()
-            local Active = Library.ActiveTab
-            if Active and Active.Button == TabButton then
-                return Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
-            end
-            return Library.Scheme.MainColor
-        end
     end
 
     if Style.CornerRadius > 0 then
@@ -18112,11 +18101,6 @@ function Library:CreateWindow(WindowInfo)
                 Library.ActiveTab:Hide()
             end
 
-            TabButton.BackgroundColor3 = Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
-            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
-            if ActiveIndicator then
-                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 0 }):Play()
-            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 0,
             }):Play()
@@ -18145,11 +18129,6 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:Hide()
-            TabButton.BackgroundColor3 = Library.Scheme.MainColor
-            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
-            if ActiveIndicator then
-                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
-            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
             }):Play()
@@ -18471,11 +18450,6 @@ function Library:CreateWindow(WindowInfo)
                 Library.ActiveTab:Hide()
             end
 
-            TabButton.BackgroundColor3 = Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
-            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
-            if ActiveIndicator then
-                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 0 }):Play()
-            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 0,
             }):Play()
@@ -18505,11 +18479,6 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:Hide()
-            TabButton.BackgroundColor3 = Library.Scheme.MainColor
-            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
-            if ActiveIndicator then
-                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
-            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
             }):Play()
