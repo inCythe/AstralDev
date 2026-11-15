@@ -15899,8 +15899,8 @@ function Library:CreateWindow(WindowInfo)
         --// Edge fades dissolve scrolled tabs into the sidebar surface. The bottom
         --// fade is taller so content melts away before it reaches the Discord pill. \
         local TabsFadeZ = Tabs.ZIndex + 1
-        Library:AddEdgeFade(TabsViewport, "top", 28, "PanelColor", TabsFadeZ)
-        Library:AddEdgeFade(TabsViewport, "bottom", DiscordBtnHeight > 0 and 64 or 28, "PanelColor", TabsFadeZ)
+        Library:AddEdgeFade(TabsViewport, "top", 20, "PanelColor", TabsFadeZ)
+        Library:AddEdgeFade(TabsViewport, "bottom", DiscordBtnHeight > 0 and 52 or 20, "PanelColor", TabsFadeZ)
 
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
@@ -15938,7 +15938,7 @@ function Library:CreateWindow(WindowInfo)
             --// Floating Discord pill: docked to the bottom-center of the sidebar,
             --// overlaying the tab scroll so the edge fade can dissolve tabs beneath it. \
             local DiscordTextWidth = select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200))
-            DiscordPillWidth = math.ceil(DiscordTextWidth) + 54 --// 14 padding + 18 icon + 8 gap + 14 padding
+            DiscordPillWidth = math.ceil(DiscordTextWidth) + 76 --// 20 padding + 18 icon + 10 gap + 20 padding + 8 breathing room
             DiscordBtn = New("TextButton", {
                 AnchorPoint = Vector2.new(0.5, 1),
                 BackgroundColor3 = "PanelColor",
@@ -15961,8 +15961,8 @@ function Library:CreateWindow(WindowInfo)
                 Parent = DiscordBtn,
             })
             New("UIPadding", {
-                PaddingLeft = UDim.new(0, 14),
-                PaddingRight = UDim.new(0, 14),
+                PaddingLeft = UDim.new(0, 20),
+                PaddingRight = UDim.new(0, 20),
                 Parent = DiscordBtn,
             })
             Library:AddShadow(DiscordBtn, {
@@ -15976,7 +15976,7 @@ function Library:CreateWindow(WindowInfo)
                 FillDirection = Enum.FillDirection.Horizontal,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 VerticalAlignment = Enum.VerticalAlignment.Center,
-                Padding = UDim.new(0, 8),
+                Padding = UDim.new(0, 10),
                 Parent = DiscordBtn,
             })
 
@@ -16565,6 +16565,11 @@ function Library:CreateWindow(WindowInfo)
         if DiscordBtn then
             --// Compact sidebar is only 48px wide: collapse the pill to its icon. \
             DiscordBtn.Size = UDim2.fromOffset(IsCompact and 44 or (DiscordPillWidth or 120), 36)
+            local PillPadding = DiscordBtn:FindFirstChildOfClass("UIPadding")
+            if PillPadding then
+                PillPadding.PaddingLeft = UDim.new(0, IsCompact and 6 or 20)
+                PillPadding.PaddingRight = UDim.new(0, IsCompact and 6 or 20)
+            end
             for _, Child in DiscordBtn:GetDescendants() do
                 if Child:IsA("TextLabel") then
                     Child.Visible = not IsCompact
@@ -17075,8 +17080,8 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddEdgeFade(TabContainer, "top", 28, PageFadeColor, PageFadeZ)
-            Library:AddEdgeFade(TabContainer, "bottom", 28, PageFadeColor, PageFadeZ)
+            Library:AddEdgeFade(TabContainer, "top", 20, PageFadeColor, PageFadeZ)
+            Library:AddEdgeFade(TabContainer, "bottom", 20, PageFadeColor, PageFadeZ)
 
             do
                 New("Frame", {
@@ -18562,8 +18567,8 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            local KeyTopFade = Library:AddEdgeFade(Container, "top", 28, PageFadeColor, PageFadeZ)
-            local KeyBottomFade = Library:AddEdgeFade(Container, "bottom", 28, PageFadeColor, PageFadeZ)
+            local KeyTopFade = Library:AddEdgeFade(Container, "top", 20, PageFadeColor, PageFadeZ)
+            local KeyBottomFade = Library:AddEdgeFade(Container, "bottom", 20, PageFadeColor, PageFadeZ)
             KeyTopFade.Visible = false
             KeyBottomFade.Visible = false
             TabContainer:GetPropertyChangedSignal("Visible"):Connect(function()
