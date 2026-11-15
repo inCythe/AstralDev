@@ -1686,12 +1686,11 @@ end
 --// middle stop anchors the theme background so the window never drifts tone.
 function Library:GetGradientSequence(): ColorSequence
     local Start, End = Library:GetGradientColors()
-    --// Mid stop sits between Start and End so the gradient reads as a smooth
-    --// premium sheen rather than a flat wash. \\--
-    local Mid = Start:Lerp(End, 0.45)
+    local Scheme = Library.Scheme
+    local Mid = Scheme.BackgroundColor:Lerp(End, 0.35)
     return ColorSequence.new({
         ColorSequenceKeypoint.new(0, Start),
-        ColorSequenceKeypoint.new(0.5, Mid),
+        ColorSequenceKeypoint.new(0.55, Mid),
         ColorSequenceKeypoint.new(1, End),
     })
 end
@@ -1817,12 +1816,10 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
         --// When Transparency is 0 the window stays opaque; the gradient overlay adds tint.
         Inst.BackgroundTransparency = Gradients and math.max(Transparency, 0.02) or Transparency
     elseif Mode == "panel" then
-        --// Transparency = 0 stays fully opaque; the gradient-panel factor only
-        --// kicks in as window transparency rises. \\--
-        local Show = Gradients and (1 - Library.GradientPanelTransparency * Transparency) or 1
+        local Show = Gradients and (1 - Library.GradientPanelTransparency) or 1
         Inst.BackgroundTransparency = 1 - (1 - Base) * Show * (1 - Transparency)
     else
-        local Show = Gradients and (1 - Library.GradientCardTransparency * Transparency) or 1
+        local Show = Gradients and (1 - Library.GradientCardTransparency) or 1
         Inst.BackgroundTransparency = 1 - (1 - Base) * Show * (1 - Transparency)
     end
 end
@@ -1968,17 +1965,16 @@ function Library:SyncDesign()
     Scheme.OutlineSoftColor = Outline:Lerp(Bg, 0.35)
     Scheme.TextMutedColor = FontColor:Lerp(Bg, 0.45)
 
-    --// Window gradient: premium glassmorphism sheen. The start is a lighter tint
-    --// of the background, the end leans into the accent hue, and the middle stop
-    --// anchors on the background so the window never drifts off-theme. \\--
-    local Start = Light and Bg:Lerp(Color3.new(1, 1, 1), 0.42) or Bg:Lerp(Color3.new(1, 1, 1), 0.14)
+    --// Window gradient: a restrained sheen that belongs to the theme. It is kept
+    --// within a small delta of the background so text contrast never suffers.
+    local Start = Light and Bg:Lerp(Color3.new(1, 1, 1), 0.5) or Bg:Lerp(Color3.new(1, 1, 1), 0.045)
     local EndBase
     if typeof(Scheme.GradientColor) == "Color3" then
-        EndBase = Bg:Lerp(Scheme.GradientColor, 0.65)
+        EndBase = Bg:Lerp(Scheme.GradientColor, 0.7)
     else
-        EndBase = Bg:Lerp(Scheme.AccentColor, Light and 0.10 or 0.20)
+        EndBase = Bg:Lerp(Scheme.AccentColor2, Light and 0.06 or 0.12)
     end
-    local End = ClampTowards(Bg, EndBase, Light and 34 or 42)
+    local End = ClampTowards(Bg, EndBase, Light and 18 or 26)
 
     Scheme.GradientStartColor = Start
     Scheme.GradientEndColor = End
@@ -15113,7 +15109,9 @@ function Library:CreateWindow(WindowInfo)
         end)
 
         MainFrame = New("TextButton", {
-            BackgroundTransparency = 1, --// Transparent container; backdrop painted by layers below.
+            BackgroundColor3 = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
+            end,
             Name = "Main",
             Text = "",
             Position = WindowInfo.Position,
@@ -15140,52 +15138,12 @@ function Library:CreateWindow(WindowInfo)
         MainWindowScale = MainFrame:FindFirstChildOfClass("UIScale")
         Library.MainFrame = MainFrame
 
-        --// ---- Backdrop layering (bottom to top) ----
-        --//   1. BackgroundFill  : base background color (the "background" layer)
-        --//   2. GradientOverlay : theme gradient map (the "gradient map" layer)
-        --//   3. Content         : all panels, sections, controls (created after, on top)
-        --// ----------------------------------------------------------------------------
-
-        --// 1. Background fill: bottom layer, solid base color. \\--
-        local BackgroundFill = New("Frame", {
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
-            end,
-            Name = "BackgroundFill",
-            Size = UDim2.fromScale(1, 1),
-            ZIndex = MainFrame.ZIndex,
-            Parent = MainFrame,
-        })
-        table.insert(
-            Library.Corners,
-            New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = BackgroundFill,
-            })
-        )
-        Library.StyleTargets[BackgroundFill] = "panel"
-
-        --// Premium edge highlight: a subtle inner stroke that gives the window a
-        --// crisp, glassmorphism border. Sits on top of the background, below content. \\--
-        local HighlightStroke = New("UIStroke", {
-            Color = function()
-                return Library.Scheme.OutlineColor:Lerp(Library.Scheme.AccentColor, 0.35)
-            end,
-            Transparency = 0.6,
-            LineJoinMode = Enum.LineJoinMode.Round,
-            Parent = MainFrame,
-        })
-        Library:AddToRegistry(HighlightStroke, { Color = function()
-            return Library.Scheme.OutlineColor:Lerp(Library.Scheme.AccentColor, 0.35)
-        end })
-
-        --// 2. Gradient overlay: gradient map above the background fill, below content. \\--
+        --// Gradient overlay: sits right above the window background and below all content. \\--
         Library.GradientOverlay = New("Frame", {
             BackgroundColor3 = Color3.new(1, 1, 1),
             Name = "GradientOverlay",
             Size = UDim2.fromScale(1, 1),
             Visible = Library.GradientsEnabled,
-            ZIndex = MainFrame.ZIndex + 1,
             Parent = MainFrame,
         })
         table.insert(
@@ -15198,15 +15156,12 @@ function Library:CreateWindow(WindowInfo)
         Library.GradientObject = New("UIGradient", {
             Parent = Library.GradientOverlay,
         })
-        Library.StyleTargets[Library.GradientOverlay] = "panel"
 
-        --// MainFrame stays a style root so GetStyleRoot finds it for all
-        --// children (transparency inheritance), but we do NOT call AddStyleRoot
-        --// on it: MainFrame is intentionally transparent, the backdrop layers
-        --// handle the background and gradient. \\--
+        --// The backdrop is painted by a single theme-derived gradient (see
+        --// Library:GetGradientSequence). There is no bitmap layer stacked on top:
+        --// that is what made older builds look patchy and off-palette.
+        Library.StyleTargets[MainFrame] = "main"
         Library.StyleRoots[MainFrame] = true
-        Library.StyleTargets[MainFrame] = "root"
-
         Library.MainWindowScale = MainWindowScale
         Library.CenterMainWindow = WindowInfo.Center and true or false
 
@@ -15260,9 +15215,7 @@ function Library:CreateWindow(WindowInfo)
                 OnViewportChanged()
             end))
         end
-
-        --// AddOutline(MainFrame) is intentionally skipped: HighlightStroke above
-        --// provides the premium edge highlight instead of a double outline. \\--
+        Library:AddOutline(MainFrame)
         Library:MakeLine(MainFrame, {
             Position = UDim2.fromOffset(0, 48),
             Size = UDim2.new(1, 0, 0, 1),
