@@ -2731,13 +2731,13 @@ end
 --// transparent inward, so scrolled content dissolves instead of hard-clipping.
 --// Parent must be a non-scrolling host (siblings of the ScrollingFrame), and the
 --// fade's ZIndex should sit one step above the scroll content. \--
-function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?): GuiObject
+function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?, Inset: number?): GuiObject
     local Fade = New("Frame", {
         AnchorPoint = Edge == "top" and Vector2.zero or Vector2.new(0, 1),
         BackgroundColor3 = ColorIndex,
         BorderSizePixel = 0,
         Name = "EdgeFade_" .. Edge,
-        Position = Edge == "top" and UDim2.fromOffset(0, 0) or UDim2.new(0, 0, 1, 0),
+        Position = Edge == "top" and UDim2.fromOffset(0, Inset or 0) or UDim2.new(0, 0, 1, -(Inset or 0)),
         Size = UDim2.new(1, 0, 0, Thickness),
         ZIndex = ZIndex,
         Parent = Parent,
@@ -3658,9 +3658,19 @@ end
 --// actually hidden content in that direction: the top fade appears once the
 --// canvas is scrolled down, the bottom fade only while more content sits below
 --// the viewport. When everything fits, neither fade renders. \--
-function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?)
-    local Top = Library:AddEdgeFade(Host, "top", Thickness or 20, ColorIndex, ZIndex)
-    local Bottom = Library:AddEdgeFade(Host, "bottom", Thickness or 20, ColorIndex, ZIndex)
+function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?, TopInset: number?, BottomInset: number?)
+    --// Fades are plain GuiObjects: on a layout-managed host they would become
+    --// layout items themselves, so bail out instead of corrupting the layout. \
+    if Host:FindFirstChildOfClass("UIListLayout")
+        or Host:FindFirstChildOfClass("UIGridLayout")
+        or Host:FindFirstChildOfClass("UIFlexLayout")
+        or Host:FindFirstChildOfClass("UIPageLayout")
+    then
+        return nil
+    end
+
+    local Top = Library:AddEdgeFade(Host, "top", Thickness or 20, ColorIndex, ZIndex, TopInset)
+    local Bottom = Library:AddEdgeFade(Host, "bottom", Thickness or 20, ColorIndex, ZIndex, BottomInset)
 
     local function Update()
         if not ScrollbarAncestorsVisible(Scroll) then
@@ -12208,6 +12218,7 @@ do
         })
         Library:AddToRegistry(InlineList, { ScrollBarImageColor3 = "OutlineColor" })
         Library:AddCustomScrollbar(InlineList)
+        Library:AddScrollEdgeFades(ListShell, InlineList, "MainColor", InlineList.ZIndex + 1)
 
         local function SetListHeight(Height: number)
             ListWrap.Size = UDim2.new(1, 0, 0, math.max(Height - 1, 0))
@@ -15967,13 +15978,13 @@ function Library:CreateWindow(WindowInfo)
         --// bottom corners by the footer fill, so rounding all four is seamless. \
         New("UIPadding", {
             PaddingTop = UDim.new(0, 52), --// clears the 48px top bar
-            PaddingBottom = UDim.new(0, 10),
+            PaddingBottom = UDim.new(0, 4),
             Parent = Sidebar,
         })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             HorizontalAlignment = Enum.HorizontalAlignment.Center,
-            Padding = UDim.new(0, 8),
+            Padding = UDim.new(0, 6),
             SortOrder = Enum.SortOrder.LayoutOrder,
             Parent = Sidebar,
         })
@@ -15987,7 +15998,7 @@ function Library:CreateWindow(WindowInfo)
             BackgroundTransparency = 1,
             LayoutOrder = 1,
             Name = "TabsViewport",
-            Size = UDim2.new(1, 0, 1, -(62 + (DiscordBtnHeight > 0 and DiscordBtnHeight + 8 or 0))),
+            Size = UDim2.new(1, 0, 1, -(56 + (DiscordBtnHeight > 0 and DiscordBtnHeight + 6 or 0))),
             Parent = Sidebar,
         })
 
@@ -16087,7 +16098,7 @@ function Library:CreateWindow(WindowInfo)
             --// and label are positioned manually as a centered group instead. \
             local DiscordTextWidth = math.ceil(select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200)))
             local DiscordGroupWidth = 18 + 10 + DiscordTextWidth
-            local DiscordGroupLeft = -DiscordGroupWidth / 2
+            local DiscordGroupLeft = -DiscordGroupWidth / 2 - 14
 
             local DiscordImgLabel = New("ImageLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
@@ -17312,6 +17323,7 @@ function Library:CreateWindow(WindowInfo)
                 Parent = WarningBox,
             })
             Library:AddCustomScrollbar(WarningBoxScrollingFrame)
+            Library:AddScrollEdgeFades(WarningBox, WarningBoxScrollingFrame, "PanelColor", WarningBoxScrollingFrame.ZIndex + 1)
             New("UIPadding", {
                 PaddingBottom = UDim.new(0, 4),
                 PaddingLeft = UDim.new(0, 6),
@@ -17787,6 +17799,7 @@ function Library:CreateWindow(WindowInfo)
                             Size = UDim2.new(1, 0, 1, -(HeaderHeight + 1)),
                             Parent = SectionHolder,
                         })
+                        Library:AddScrollEdgeFades(SectionHolder, BodyScroll, "PanelColor", BodyScroll.ZIndex + 1, nil, HeaderHeight + 1)
                     end
 
                     SectionContainer.Position = UDim2.new()
@@ -18354,6 +18367,7 @@ function Library:CreateWindow(WindowInfo)
                             Visible = WasVisible,
                             Parent = SectionGroupHolder,
                         })
+                        Library:AddScrollEdgeFades(SectionGroupHolder, Scroll, "PanelColor", Scroll.ZIndex + 1, nil, BarHeight)
 
                         Container.Position = UDim2.new()
                         Container.Size = UDim2.new(1, 0, 0, 0)
@@ -19903,6 +19917,7 @@ function Library:CreateWindow(WindowInfo)
         })
         Library:AddToRegistry(ScrollFrame, { ScrollBarImageColor3 = "OutlineColor" })
         Library:AddCustomScrollbar(ScrollFrame)
+        Library:AddScrollEdgeFades(SearchOverlay, ScrollFrame, "MainColor", ScrollFrame.ZIndex + 1)
 
         New("UICorner", {
             CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
