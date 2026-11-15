@@ -806,6 +806,26 @@ do
             end,
         })
 
+        groupbox:AddSlider("ThemeManager_GradientTransparency", {
+            Text = "Gradient transparency",
+            Default = math.floor((self.Library.GradientTransparency or 0) * 100 + 0.5),
+            Min = 0,
+            Max = 100,
+            Rounding = 0,
+            Suffix = "%",
+            Callback = function(Value)
+                self.Library:SetGradientTransparency(Value / 100)
+            end,
+        })
+
+        groupbox:AddToggle("ThemeManager_HighlightEdge", {
+            Text = "Edge highlight",
+            Default = self.Library.HighlightEdgeEnabled ~= false,
+            Callback = function(Value)
+                self.Library:SetHighlightEdge(Value)
+            end,
+        })
+
         local ThemesArray = {}
         for Name, Theme in pairs(self.BuiltInThemes) do
             table.insert(ThemesArray, Name)

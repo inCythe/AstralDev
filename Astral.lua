@@ -541,7 +541,7 @@ local Templates = {
         Font = Enum.Font.GothamMedium,
         TitleSize = 20,
         TitleColor = nil,
-        TitleAlignment = "Center", --// "Left" | "Center" | "Right": where the title block sits in the sidebar header and how the title aligns
+        TitleAlignment = "Left", --// "Left" | "Center" | "Right": where the title block sits in the sidebar header and how the title aligns
         SubtitleAlignment = nil, --// same options; nil follows TitleAlignment
         Subtitle = nil,
         SubtitleSize = 12,
@@ -563,6 +563,8 @@ local Templates = {
         Gradient = true,
         GradientColor = nil,
         GradientRotation = 45,
+        GradientTransparency = 0.2, --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
+        HighlightEdge = true, --// accent-tinted edge highlight stroke around the window
         ToggleKeybind = Enum.KeyCode.RightControl,
 
         Bubble = nil,
@@ -1668,6 +1670,8 @@ end
 Library.WindowTransparency = 0
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
+Library.GradientTransparency = 0.2 --// 0 = solid gradient wash, 1 = invisible gradient overlay
+Library.HighlightEdgeEnabled = true
 Library.GradientTextureTransparency = 0.8 --// base ImageTransparency of the gradient artwork; fades out with window transparency
 Library.GradientPanelTransparency = 0.1 --// panels are 90% opaque
 Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "panel" | "card"
@@ -1830,7 +1834,9 @@ function Library:UpdateWindowStyle()
         Overlay.Visible = Library.GradientsEnabled
         Library.GradientObject.Color = Library:GetGradientSequence()
         Library.GradientObject.Rotation = Library.GradientRotation
-        Library.GradientObject.Transparency = NumberSequence.new(Library.WindowTransparency)
+        Library.GradientObject.Transparency = NumberSequence.new(
+            1 - (1 - Library.WindowTransparency) * (1 - (Library.GradientTransparency or 0))
+        )
     end
 
     --// Overlay roots (menus, dialogs, popouts) get the same restrained sheen so
@@ -1928,6 +1934,21 @@ function Library:SetGradientRotation(Rotation: number)
 
     Library.GradientRotation = Rotation
     Library:UpdateWindowStyle()
+end
+
+--// 0 = solid gradient wash, 1 = gradient overlay fully invisible. \--
+function Library:SetGradientTransparency(Value: number)
+    assert(typeof(Value) == "number", "Expected number for transparency got: " .. typeof(Value))
+
+    Library.GradientTransparency = math.clamp(Value, 0, 1)
+    Library:UpdateWindowStyle()
+end
+
+function Library:SetHighlightEdge(Enabled: boolean)
+    Library.HighlightEdgeEnabled = Enabled == true
+    if Library.HighlightEdgeStroke then
+        Library.HighlightEdgeStroke.Enabled = Library.HighlightEdgeEnabled
+    end
 end
 
 --// ---- Central design system ------------------------------------------------
@@ -2703,6 +2724,53 @@ function Library:AddEdgeFill(Frame: GuiObject, Edge: string, ColorIndex: string?
     Library.StyleTargets[Fill] = Mode or "panel"
 
     return Fill
+end
+
+--// Soft drop shadow drawn behind a surface. The shadow is a child with a ZIndex
+--// below its parent, so under ZIndexBehavior.Global it renders behind the parent's
+--// own background and peeks out around the edges (parents must not clip
+--// descendants for the overflow to show). Offset/Spread are in pixels and are
+--// scaled automatically because they live inside the parent's UIScale chain. \--
+function Library:AddShadow(Frame: GuiObject, Options: { [string]: any }?)
+    Options = Options or {}
+
+    local Spread = Options.Spread or 10
+    local Drop = Options.Drop or 6
+    local Radius = Options.Radius or (Library.CornerRadius or 10)
+
+    local Shadow = New("Frame", {
+        Name = "Shadow",
+        AnchorPoint = Vector2.zero,
+        Position = UDim2.fromOffset(-Spread, -Spread * 0.4),
+        Size = UDim2.new(1, Spread * 2, 1, Spread * 2 + Drop),
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BackgroundTransparency = Options.Transparency or 0.55,
+        ZIndex = Frame.ZIndex - 1,
+        BorderSizePixel = 0,
+        Parent = Frame,
+    })
+
+    table.insert(
+        Library.Corners,
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Radius + Spread * 0.6),
+            Parent = Shadow,
+        })
+    )
+
+    --// Vertical fade keeps the shadow soft: faint at the top edge, strongest
+    --// where it peeks out below the surface. \--
+    New("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.75),
+            NumberSequenceKeypoint.new(0.55, 0.45),
+            NumberSequenceKeypoint.new(1, 0.15),
+        }),
+        Parent = Shadow,
+    })
+
+    return Shadow
 end
 
 
@@ -5076,6 +5144,12 @@ function Library:AddContextMenu(
         Parent = Menu,
     })
     Library:AddStyleRoot(Menu)
+    Library:AddShadow(Menu, {
+        Spread = 12,
+        Drop = 8,
+        Radius = Library.CornerRadius / 2,
+        Transparency = 0.6,
+    })
 
     if IgnoreCornerRadius ~= true then
         table.insert(
@@ -10295,6 +10369,13 @@ do
             Parent = Holder,
         })
 
+        Library:AddShadow(Holder, {
+            Spread = 8,
+            Drop = 5,
+            Radius = Library:GetRadius("panel"),
+            Transparency = 0.6,
+        })
+
         local TitleLabel, SubtextLabel
         if HasTitle or HasSubtext then
             local Head = New("Frame", {
@@ -10480,10 +10561,16 @@ do
                     Used += Column.Width
                 elseif Column.Width == "Auto" then
                     local Best = Measure(Column.Name, 12)
+                    local HasIcon = false
                     for _, RowData in Table.Rows do
-                        Best = math.max(Best, Measure(CellText(CellValue(RowData, Column, Index)), 13))
+                        local Value = CellValue(RowData, Column, Index)
+                        if typeof(Value) == "table" and Value.Icon then
+                            HasIcon = true
+                        end
+                        Best = math.max(Best, Measure(CellText(Value), 13))
                     end
-                    local Width = Best + 16
+                    --// PadH (8*2) + slack + optional icon tile (18px + gap). \
+                    local Width = Best + 26 + (HasIcon and 22 or 0)
                     Result[Index] = Width
                     Used += Width
                 else
@@ -10501,7 +10588,7 @@ do
                     Result[Index] = Remaining
                     Allocated += Remaining
                 else
-                    local MinWidth = math.max(Measure(Column.Name, 12) + 16, 20)
+                    local MinWidth = math.max(Measure(Column.Name, 12) + 26, 20)
                     local Share = math.floor(Free * Column.Weight / math.max(Weights, 1))
                     local Width = math.max(Share, MinWidth)
                     Result[Index] = Width
@@ -10561,7 +10648,7 @@ do
                 Offset = 18
             end
 
-            local PadH = 4
+            local PadH = 8
             local Props = {
                 BackgroundTransparency = 1,
                 Position = UDim2.fromOffset(Offset + PadH, 0),
@@ -14847,6 +14934,8 @@ function Library:CreateWindow(WindowInfo)
     Library.WindowTransparency = math.clamp(tonumber(WindowInfo.Transparency) or 0, 0, 0.85)
     Library.GradientsEnabled = WindowInfo.Gradient ~= false
     Library.GradientRotation = tonumber(WindowInfo.GradientRotation) or 45
+    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.2, 0, 1)
+    Library.HighlightEdgeEnabled = WindowInfo.HighlightEdge ~= false
     if typeof(WindowInfo.GradientColor) == "Color3" then
         Library.Scheme.GradientColor = WindowInfo.GradientColor
     end
@@ -14884,6 +14973,8 @@ function Library:CreateWindow(WindowInfo)
     local FooterLeftSlot
     local FooterMiddleSlot
     local FooterRightSlot
+    local BottomBar
+    local BottomLine
     local DiscordBtn
     local DiscordBtnHeight
     local MainWindowScale
@@ -15216,9 +15307,29 @@ function Library:CreateWindow(WindowInfo)
             end))
         end
         Library:AddOutline(MainFrame)
-        Library:MakeLine(MainFrame, {
-            Position = UDim2.fromOffset(0, 48),
-            Size = UDim2.new(1, 0, 0, 1),
+
+        --// Soft drop shadow behind the window. Child ZIndex sits below the
+        --// window's own ZIndex, so under Global ZIndexBehavior it renders behind
+        --// the window background and shows only around the edges. \--
+        Library:AddShadow(MainFrame, {
+            Spread = 14,
+            Drop = 10,
+            Radius = WindowInfo.CornerRadius,
+            Transparency = 0.6,
+        })
+
+        --// Premium edge highlight: thin accent-tinted ring framing the window. \--
+        Library.HighlightEdgeStroke = New("UIStroke", {
+            Name = "HighlightEdge",
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+            Color = function()
+                return Library.Scheme.OutlineColor:Lerp(Library.Scheme.AccentColor, 0.35)
+            end,
+            Enabled = Library.HighlightEdgeEnabled ~= false,
+            LineJoinMode = Enum.LineJoinMode.Round,
+            Thickness = 1,
+            Transparency = 0.55,
+            Parent = MainFrame,
         })
 
         DividerLine = New("Frame", {
@@ -15288,6 +15399,7 @@ function Library:CreateWindow(WindowInfo)
             Name = "TopBar",
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 48),
+            ZIndex = MainFrame.ZIndex + 1, --// above the full-height sidebar
             Parent = MainFrame,
         })
         local WindowSnapConfig = {
@@ -15605,10 +15717,10 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, 0, 0, math.max(20, WindowInfo.CornerRadius * 2)),
             Parent = MainFrame
         })
-        Library:MakeLine(MainFrame, {
+        BottomLine = Library:MakeLine(MainFrame, {
             AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, 0, 1, -20),
-            Size = UDim2.new(1, 0, 0, 1),
+            Position = UDim2.new(0, InitialLeftWidth + 1, 1, -20),
+            Size = UDim2.new(1, -(InitialLeftWidth + 1), 0, 1),
         })
 
         --// Footer fill is rounded on the bottom edge only; the straight top edge
@@ -15616,11 +15728,11 @@ function Library:CreateWindow(WindowInfo)
         local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "PanelColor", WindowInfo.CornerRadius, "panel")
         BottomFill.Name = "BottomFill"
 
-        local BottomBar = New("Frame", {
+        BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
-            Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, 20),
+            Position = UDim2.new(0, InitialLeftWidth + 1, 1, 0),
+            Size = UDim2.new(1, -(InitialLeftWidth + 1), 0, 20),
             Parent = MainFrame,
         })
 
@@ -15695,11 +15807,24 @@ function Library:CreateWindow(WindowInfo)
 
         Sidebar = New("Frame", {
             BackgroundColor3 = "PanelColor",
-            Position = UDim2.fromOffset(0, 48),
-            Size = UDim2.new(0, InitialLeftWidth, 1, -68),
+            Position = UDim2.fromOffset(0, 0),
+            Size = UDim2.new(0, InitialLeftWidth, 1, 0),
             Parent = MainFrame,
         })
         Library.StyleTargets[Sidebar] = "panel"
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = Sidebar,
+            })
+        )
+        --// Top corners of the sidebar are covered by the same-colored top strip,
+        --// bottom corners by the footer fill, so rounding all four is seamless. \
+        New("UIPadding", {
+            PaddingTop = UDim.new(0, 52), --// clears the 48px top bar
+            Parent = Sidebar,
+        })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -15715,7 +15840,7 @@ function Library:CreateWindow(WindowInfo)
             LayoutOrder = 1,
             ScrollBarThickness = 0,
             ScrollBarImageTransparency = 1,
-            Size = UDim2.new(1, 0, 1, -DiscordBtnHeight),
+            Size = UDim2.new(1, 0, 1, 0),
             Parent = Sidebar,
         })
         -- Library:AddCustomScrollbar(Tabs)
@@ -15726,8 +15851,8 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", {
             PaddingTop = UDim.new(0, 6 + WindowInfo.TabButtonsStyle.Padding),
             PaddingBottom = UDim.new(0, 6 + WindowInfo.TabButtonsStyle.Padding),
-            PaddingLeft = UDim.new(0, 4 + WindowInfo.TabButtonsStyle.Padding),
-            PaddingRight = UDim.new(0, 4 + WindowInfo.TabButtonsStyle.Padding),
+            PaddingLeft = UDim.new(0, 12 + WindowInfo.TabButtonsStyle.Padding),
+            PaddingRight = UDim.new(0, 10 + WindowInfo.TabButtonsStyle.Padding),
             Parent = Tabs,
         })
 
@@ -15764,22 +15889,40 @@ function Library:CreateWindow(WindowInfo)
                 end
             end
 
-            New("Frame", {
-                BackgroundColor3 = "OutlineColor",
-                BorderSizePixel = 0,
-                LayoutOrder = 2,
-                Size = UDim2.new(1, 0, 0, 1),
-                Parent = Sidebar,
-            })
-
+            --// Floating Discord pill: anchored to the window's bottom-right corner,
+            --// hovering above the footer instead of living inside the sidebar. \
             DiscordBtn = New("TextButton", {
-                BackgroundColor3 = "MainColor",
-                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(1, 1),
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundColor3 = "PanelColor",
                 BorderSizePixel = 0,
-                LayoutOrder = 3,
-                Size = UDim2.new(1, 0, 0, DiscordBtnHeight - 1),
+                Position = UDim2.new(1, -14, 1, -34),
+                Size = UDim2.new(0, 0, 0, 36),
                 Text = "",
-                Parent = Sidebar,
+                ZIndex = MainFrame.ZIndex + 2,
+                Parent = MainFrame,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = DiscordBtn,
+                })
+            )
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Parent = DiscordBtn,
+            })
+            New("UIPadding", {
+                PaddingLeft = UDim.new(0, 14),
+                PaddingRight = UDim.new(0, 14),
+                Parent = DiscordBtn,
+            })
+            Library:AddShadow(DiscordBtn, {
+                Spread = 8,
+                Drop = 5,
+                Radius = 18,
+                Transparency = 0.65,
             })
 
             New("UIListLayout", {
@@ -15797,7 +15940,7 @@ function Library:CreateWindow(WindowInfo)
                 ImageTransparency = 0.5,
                 ScaleType = Enum.ScaleType.Fit,
                 Size = UDim2.fromOffset(18, 18),
-                Visible = not IsCompact,
+                Visible = true,
                 Parent = DiscordBtn,
             })
 
@@ -15810,11 +15953,12 @@ function Library:CreateWindow(WindowInfo)
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextXAlignment = Enum.TextXAlignment.Center,
-                Visible = not IsCompact,
+                Visible = true,
                 Parent = DiscordBtn,
             })
 
             local DiscordCompactIcon = New("ImageLabel", {
+                Name = "DiscordCompactIcon",
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 BackgroundTransparency = 1,
                 Image = CustomImageManager.GetAsset("DiscordIcon") or "",
@@ -15823,14 +15967,14 @@ function Library:CreateWindow(WindowInfo)
                 ScaleType = Enum.ScaleType.Fit,
                 Position = UDim2.fromScale(0.5, 0.5),
                 Size = UDim2.fromOffset(20, 20),
-                Visible = IsCompact,
+                Visible = false,
                 Parent = DiscordBtn,
             })
 
             task.defer(function()
-                DiscordTextLabel.Visible = not IsCompact
-                DiscordImgLabel.Visible = not IsCompact
-                DiscordCompactIcon.Visible = IsCompact
+                DiscordTextLabel.Visible = true
+                DiscordImgLabel.Visible = true
+                DiscordCompactIcon.Visible = false
 
                 local Resolved = CustomImageManager.GetAsset("DiscordIcon")
                 if Resolved and DiscordImgLabel and DiscordImgLabel.Parent then
@@ -15845,7 +15989,7 @@ function Library:CreateWindow(WindowInfo)
 
             DiscordBtn.MouseEnter:Connect(function()
                 TweenService:Create(DiscordBtn, Library.TweenInfo, {
-                    BackgroundTransparency = 0.85,
+                    BackgroundTransparency = 0.15,
                 }):Play()
                 TweenService:Create(DiscordImgLabel, Library.TweenInfo, {
                     ImageTransparency = 0,
@@ -15859,7 +16003,7 @@ function Library:CreateWindow(WindowInfo)
             end)
             DiscordBtn.MouseLeave:Connect(function()
                 TweenService:Create(DiscordBtn, Library.TweenInfo, {
-                    BackgroundTransparency = 1,
+                    BackgroundTransparency = 0,
                 }):Play()
                 TweenService:Create(DiscordImgLabel, Library.TweenInfo, {
                     ImageTransparency = 0.5,
@@ -15873,12 +16017,12 @@ function Library:CreateWindow(WindowInfo)
             end)
             DiscordBtn.MouseButton1Down:Connect(function()
                 TweenService:Create(DiscordBtn, Library.TweenInfo, {
-                    BackgroundTransparency = 0.7,
+                    BackgroundTransparency = 0.3,
                 }):Play()
             end)
             DiscordBtn.MouseButton1Up:Connect(function()
                 TweenService:Create(DiscordBtn, Library.TweenInfo, {
-                    BackgroundTransparency = 0.85,
+                    BackgroundTransparency = 0.15,
                 }):Play()
             end)
         end
@@ -15922,6 +16066,17 @@ function Library:CreateWindow(WindowInfo)
     function Window:SetGradient(Enabled: boolean)
         WindowInfo.Gradient = Enabled == true
         Library:SetGradientsEnabled(Enabled)
+    end
+
+    --// 0 = solid gradient wash, 1 = gradient overlay fully invisible. \--
+    function Window:SetGradientTransparency(Value: number)
+        WindowInfo.GradientTransparency = Value
+        Library:SetGradientTransparency(Value)
+    end
+
+    function Window:SetHighlightEdge(Enabled: boolean)
+        WindowInfo.HighlightEdge = Enabled == true
+        Library:SetHighlightEdge(Enabled)
     end
 
     --// Re-measures the title and subtitle (called after the font changes). \\--
@@ -16361,23 +16516,14 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if DiscordBtn then
-            local DiscordImgLabelObj = DiscordBtn:FindFirstChildWhichIsA("ImageLabel")
-            local AllImgLabels = {}
-            for _, Child in DiscordBtn:GetChildren() do
-                if Child:IsA("ImageLabel") then
-                    table.insert(AllImgLabels, Child)
-                end
-            end
-            local AllTextLabels = {}
-            for _, Child in DiscordBtn:GetChildren() do
+            --// Floating pill always shows icon + label regardless of sidebar compactness. \
+            for _, Child in DiscordBtn:GetDescendants() do
                 if Child:IsA("TextLabel") then
-                    table.insert(AllTextLabels, Child)
+                    Child.Visible = true
+                elseif Child:IsA("ImageLabel") and Child.Name ~= "DiscordCompactIcon" then
+                    Child.Visible = true
                 end
             end
-
-            if AllTextLabels[1] then AllTextLabels[1].Visible = not IsCompact end
-            if AllImgLabels[1] then AllImgLabels[1].Visible = not IsCompact end
-            if AllImgLabels[2] then AllImgLabels[2].Visible = IsCompact end
         end
 
         for _, Header in Library.TabSectionHeaders do
@@ -16440,8 +16586,18 @@ function Library:CreateWindow(WindowInfo)
         end
 
         RightWrapper.Size = UDim2.new(1, -Width - 90 - 1, 1, -16)
-        Sidebar.Size = UDim2.new(0, Width, 1, -70)
+        Sidebar.Size = UDim2.new(0, Width, 1, 0)
         Container.Size = UDim2.new(1, -Width - 1, 1, -70)
+
+        --// Footer row + its separator only span the content page, not the sidebar. \
+        if BottomBar then
+            BottomBar.Position = UDim2.new(0, Width + 1, 1, 0)
+            BottomBar.Size = UDim2.new(1, -(Width + 1), 0, 20)
+        end
+        if BottomLine then
+            BottomLine.Position = UDim2.new(0, Width + 1, 1, -20)
+            BottomLine.Size = UDim2.new(1, -(Width + 1), 0, 1)
+        end
 
         LayoutTitleText(Width)
 
@@ -17217,6 +17373,12 @@ function Library:CreateWindow(WindowInfo)
                     })
                 )
                 Library:AddOutline(SectionHolder)
+                Library:AddShadow(SectionHolder, {
+                    Spread = 10,
+                    Drop = 6,
+                    Radius = Library:GetRadius("panel"),
+                    Transparency = 0.62,
+                })
 
                 SectionSeparatorLine = Library:MakeLine(SectionHolder, {
                     Position = UDim2.fromOffset(0, HeaderHeight),

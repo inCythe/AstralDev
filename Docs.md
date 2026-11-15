@@ -195,6 +195,8 @@ local Window = Library:CreateWindow({
     Gradient     = true,           -- gradient across the whole window
     GradientColor = nil,           -- end color; nil = derived from the theme
     GradientRotation = 45,
+    GradientTransparency = 0.2,    -- 0 = solid gradient, 1 = invisible gradient overlay
+    HighlightEdge = true,          -- accent-tinted edge highlight around the window
     Icon         = nil,
     IconSize     = UDim2.fromOffset(30, 30),
     Size         = UDim2.fromOffset(720, 600),
@@ -314,6 +316,8 @@ Window:AddFooterItem(Side: "Left" | "Middle" | "Right", Info: string | FooterIte
 Window:ClearFooter(Side: string?)
 Window:SetTransparency(Value: number)           -- 0 to 0.85
 Window:SetGradient(Enabled: boolean)
+Window:SetGradientTransparency(Value: number)   -- 0 (solid) to 1 (invisible)
+Window:SetHighlightEdge(Enabled: boolean)
 Window:SetCornerRadius(Radius: number)
 Window:SetAlwaysOnTop(Enabled: boolean)
 Window:SetSnapping(Enabled: boolean, Distance: number?, Margin: number?, AvoidCoreGui: boolean?)
@@ -3176,16 +3180,20 @@ ThemeManager includes 18 pre-configured themes:
 
 Every built-in theme has a `GradientColor`. The window is painted with a gradient from the background color to the gradient color, so the whole UI has depth instead of a flat background. Themes (custom or imported) that don't define one get a gradient color derived from their accent color.
 
-The theme section gets a **Gradient color** picker, a **Gradients** toggle (turn it off for a flat background) and a **Window transparency** slider (0-85%). The same controls exist in code:
+The theme section gets a **Gradient color** picker, a **Gradients** toggle (turn it off for a flat background), a **Window transparency** slider (0-85%), a **Gradient transparency** slider (0-100%, softens the gradient wash itself) and an **Edge highlight** toggle (accent-tinted ring around the window). The same controls exist in code:
 
 ```lua
 Library:SetGradientsEnabled(false)
 Library:SetWindowTransparency(0.2)       -- 0 = opaque, max 0.85
+Library:SetGradientTransparency(0.2)    -- 0 = solid wash, 1 = invisible
+Library:SetHighlightEdge(false)
 Library:SetGradientColor(Color3.fromHex("1b2540"))   -- nil = derived from the theme
 Library:SetGradientRotation(45)          -- degrees
 
 Window:SetTransparency(0.2)
 Window:SetGradient(true)
+Window:SetGradientTransparency(0.2)
+Window:SetHighlightEdge(true)
 ```
 
 The gradient and transparency cover the whole UI: the window, tab pages, sections, every control (including search boxes and inputs) and every overlay (draggable menus and labels, notifications, context menus, popped-out sections). Overlays get their own gradient and are fully opaque until you raise the transparency. Controls always let a little of the gradient show through while gradients are on.
