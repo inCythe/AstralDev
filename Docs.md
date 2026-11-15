@@ -2653,7 +2653,7 @@ Astral is dependent on a few icons to be able to be displayed properly. Please m
 
 If you'd like to use custom hosted images (like those on Github) with a Roblox Asset ID as a fallback, you can use the built-in ImageManager.
 
-`GetCustomIcon` resolves, in order: (1) a *named* asset registered via `ImageManager.AddAsset` -- this covers the built-ins (`"AstralIcon"`, `"DiscordIcon"`, `"LoadingIcon"`, `"CheckIcon"`, `"TransparencyTexture"`, `"SaturationMap"`, `"GradientBackground"`); (2) a raw `rbxasset://` / `rbxthumb://` / asset-URL string; (3) a Lucide icon name via `GetIcon`.
+`GetCustomIcon` resolves, in order: (1) a *named* asset registered via `ImageManager.AddAsset` -- this covers the built-ins (`"AstralIcon"`, `"DiscordIcon"`, `"LoadingIcon"`, `"CheckIcon"`, `"TransparencyTexture"`, `"SaturationMap"`); (2) a raw `rbxasset://` / `rbxthumb://` / asset-URL string; (3) a Lucide icon name via `GetIcon`.
 
 ###### AddAsset
 
@@ -3190,7 +3190,7 @@ Window:SetGradient(true)
 
 The gradient and transparency cover the whole UI: the window, tab pages, sections, every control (including search boxes and inputs) and every overlay (draggable menus and labels, notifications, context menus, popped-out sections). Overlays get their own gradient and are fully opaque until you raise the transparency. Controls always let a little of the gradient show through while gradients are on.
 
-On top of the color gradient, the window also renders a subtle gradient artwork layer (`assets/Gradient.png`, registered as the built-in `"GradientBackground"` image). It sits above the color gradient and below any custom `BackgroundImage`, follows the same **Gradients** toggle, and fades out as window transparency rises. Its base opacity is `Library.GradientTextureTransparency` (default `0.8` ImageTransparency).
+The window gradient is now painted from a theme-derived three-stop sequence: a start tint near the background, a middle stop anchored on the theme background color, and an end tint derived from the accent color. This keeps the gradient within the theme family and preserves text contrast regardless of the selected theme.
 
 Custom themes save their gradient color. The Gradients toggle and transparency slider are saved in your SaveManager config.
 

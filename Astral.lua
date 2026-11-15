@@ -361,6 +361,33 @@ local Library = {
     CornerRadiusDropdown = true,
 
     IsLightTheme = false,
+
+    --// ---- Design tokens -------------------------------------------------------
+    --// One place for every visual constant. The palette is *derived* from the four
+    --// base colors (BackgroundColor / MainColor / AccentColor / OutlineColor) in
+    --// Library:SyncDesign(), so themes, color pickers and ThemeManager keep working
+    --// while every surface still follows a single, documented hierarchy:
+    --//
+    --//   BackgroundColor  window backdrop (the base layer)
+    --//   PanelColor       sections, dialogs, dropdowns, popouts (containers)
+    --//   MainColor        controls, inputs, cards (interactive surface)
+    --//   AccentColor      primary accent (selection, progress, primary action)
+    --//   AccentColor2     secondary accent (gradient end, soft highlights)
+    --//   AccentSoftColor  accent blended into the panel (active tab / selection)
+    --//   OutlineColor     borders and separators
+    --// --------------------------------------------------------------------------
+    Design = {
+        Radius = {
+            Window = 12,
+            Panel = 10,
+            Control = 6,
+            Small = 4,
+            Pill = 999,
+        },
+        Spacing = { XS = 4, SM = 8, MD = 12, LG = 16, XL = 24 },
+        Border = 1,
+    },
+
     Scheme = {
         BackgroundColor = Color3.fromRGB(13, 13, 16),
         MainColor = Color3.fromRGB(21, 21, 25),
@@ -370,6 +397,18 @@ local Library = {
         Font = Font.fromEnum(Enum.Font.GothamMedium),
         BackgroundImage = "",
         GradientColor = nil, --// optional: end color of the window gradient (derived from the accent when nil)
+
+        --// Derived tokens (written by Library:SyncDesign; do not set by hand).
+        PanelColor = Color3.fromRGB(17, 17, 21),
+        PanelRaisedColor = Color3.fromRGB(21, 21, 25),
+        PanelSunkenColor = Color3.fromRGB(10, 10, 12),
+        AccentColor2 = Color3.fromRGB(122, 92, 255),
+        AccentSoftColor = Color3.fromRGB(23, 34, 52),
+        AccentGradientEndColor = Color3.fromRGB(120, 170, 255),
+        OutlineSoftColor = Color3.fromRGB(27, 27, 32),
+        TextMutedColor = Color3.fromRGB(140, 140, 150),
+        GradientStartColor = Color3.fromRGB(18, 18, 23),
+        GradientEndColor = Color3.fromRGB(16, 21, 34),
 
         RedColor = Color3.fromRGB(255, 64, 64),
         DestructiveColor = Color3.fromRGB(225, 60, 60),
@@ -515,7 +554,7 @@ local Templates = {
         TabButtonsStyle = {
             Gap = 2,
             Padding = 0, --// extra space around the whole tab list
-            CornerRadius = 0,
+            CornerRadius = 8,
             Indicator = false, --// accent bar on the left of the active tab
             IndicatorWidth = 3,
             IndicatorHeight = 18,
@@ -1638,23 +1677,24 @@ Library.StyleFlushQueued = false
 
 function Library:GetGradientColors(): (Color3, Color3)
     local Scheme = Library.Scheme
-    local Base = Scheme.BackgroundColor
-    local Start = Library:GetBetterColor(Base, -1)
-
-    local End = Scheme.GradientColor
-    if typeof(End) == "Color3" then
-        End = Base:Lerp(End, 0.28)
-    else
-        if Library.IsLightTheme then
-            End = Base:Lerp(Scheme.AccentColor, 0.05)
-        else
-            local SubtleBlue = Color3.fromRGB(20, 26, 40)
-            End = Base:Lerp(SubtleBlue, 0.25):Lerp(Scheme.AccentColor, 0.04)
-        end
-    end
-
+    local Start = Scheme.GradientStartColor or Scheme.BackgroundColor
+    local End = Scheme.GradientEndColor or Scheme.BackgroundColor
     return Start, End
 end
+
+--// Three-stop sequence keeps the sheen from banding into a flat block: the
+--// middle stop anchors the theme background so the window never drifts tone.
+function Library:GetGradientSequence(): ColorSequence
+    local Start, End = Library:GetGradientColors()
+    local Scheme = Library.Scheme
+    local Mid = Scheme.BackgroundColor:Lerp(End, 0.35)
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Start),
+        ColorSequenceKeypoint.new(0.55, Mid),
+        ColorSequenceKeypoint.new(1, End),
+    })
+end
+
 
 --// Frames whose descendants follow the window style: the main window plus every overlay
 --// (draggable menus and labels, notifications, context menus, popped-out sections). \\--
@@ -1696,9 +1736,13 @@ function Library:ClassifyStyle(Inst: Instance): string?
 
     if typeof(Fill) == "function" then
         return "panel"
-    elseif Fill == "MainColor" then
+    elseif Fill == "MainColor" or Fill == "PanelRaisedColor" then
         return "card"
-    elseif Fill == "BackgroundColor" or Fill == "DarkColor" then
+    elseif Fill == "BackgroundColor"
+        or Fill == "DarkColor"
+        or Fill == "PanelColor"
+        or Fill == "PanelSunkenColor"
+        or Fill == "AccentSoftColor" then
         return "panel"
     end
 
@@ -1720,11 +1764,11 @@ local function ApplyRootStyle(Frame: GuiObject, Base: number)
 
     if Gradient then
         if Library.GradientsEnabled then
-            local Tint = Library.IsLightTheme and Color3.fromRGB(240, 243, 250) or Color3.fromRGB(215, 225, 245)
+            local Tint = Library.Scheme.BackgroundColor:Lerp(Library.Scheme.AccentColor2, 0.12):Lerp(Color3.new(1, 1, 1), 0.25)
             Gradient.Enabled = true
             Gradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
             Gradient.Rotation = Library.GradientRotation
-            Gradient.Transparency = NumberSequence.new(Transparency) 
+            Gradient.Transparency = NumberSequence.new(Transparency)
         else
             Gradient.Enabled = false
         end
@@ -1782,25 +1826,18 @@ end
 function Library:UpdateWindowStyle()
     local Overlay = Library.GradientOverlay
     if Overlay and Overlay.Parent and Library.GradientObject then
-        local Start, End = Library:GetGradientColors()
         Overlay.Visible = Library.GradientsEnabled
-        Library.GradientObject.Color = ColorSequence.new(Start, End)
+        Library.GradientObject.Color = Library:GetGradientSequence()
         Library.GradientObject.Rotation = Library.GradientRotation
         Library.GradientObject.Transparency = NumberSequence.new(Library.WindowTransparency)
     end
 
-    --// Gradient artwork layer: sits above the color gradient and fades out with the window. \--
-    local Texture = Library.GradientTexture
-    if Texture and Texture.Parent then
-        Texture.Visible = Library.GradientsEnabled
-        Texture.ImageTransparency =
-            1 - (1 - Library.GradientTextureTransparency) * (1 - Library.WindowTransparency)
-
-        local TintGradient = Library.GradientTextureGradient
-        if TintGradient then
-            local Tint = Library.IsLightTheme and Color3.fromRGB(240, 243, 250) or Color3.fromRGB(215, 225, 245)
-            TintGradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
-            TintGradient.Rotation = Library.GradientRotation
+    --// Overlay roots (menus, dialogs, popouts) get the same restrained sheen so
+    --// floating surfaces never look pasted on top of the window.
+    for Frame, Gradient in Library.StyleGradients do
+        if Frame.Parent then
+            Gradient.Color = Library:GetGradientSequence()
+            Gradient.Rotation = Library.GradientRotation
         end
     end
 
@@ -1892,7 +1929,59 @@ function Library:SetGradientRotation(Rotation: number)
     Library:UpdateWindowStyle()
 end
 
+--// ---- Central design system ------------------------------------------------
+--// Every semantic color is derived from the four base colors here, so a theme
+--// change (or a color picker) automatically keeps panels, accents and the
+--// gradient in sync. Call Library:UpdateColorsUsingRegistry() to refresh.
+local function ClampTowards(From: Color3, To: Color3, MaxDelta: number): Color3
+    local function Channel(A, B)
+        return math.clamp(B, A - MaxDelta, A + MaxDelta)
+    end
+    return Color3.new(Channel(From.R, To.R), Channel(From.G, To.G), Channel(From.B, To.B))
+end
+
+function Library:SyncDesign()
+    local Scheme = Library.Scheme
+    local Bg = Scheme.BackgroundColor
+    local Main = Scheme.MainColor
+    local Accent = Scheme.AccentColor
+    local Outline = Scheme.OutlineColor
+    local FontColor = Scheme.FontColor
+    local Light = Library.IsLightTheme
+
+    --// Surfaces: a readable three-step hierarchy instead of one flat tone.
+    Scheme.PanelColor = Bg:Lerp(Main, 0.55)
+    Scheme.PanelRaisedColor = Bg:Lerp(Main, 0.9)
+    Scheme.PanelSunkenColor = Light and Bg:Lerp(Color3.new(0, 0, 0), 0.05) or Bg:Lerp(Color3.new(0, 0, 0), 0.18)
+
+    --// Secondary accent: a related hue so gradients/highlights stay in-family.
+    local H, S, V = Accent:ToHSV()
+    local Shift = Light and -0.04 or 0.06
+    Scheme.AccentColor2 = Color3.fromHSV((H + Shift) % 1, math.clamp(S * 0.85, 0, 1), math.clamp(V * 1.02, 0, 1))
+    Scheme.AccentGradientEndColor = Accent:Lerp(Color3.new(1, 1, 1), Light and 0.12 or 0.24)
+    Scheme.AccentSoftColor = Bg:Lerp(Accent, Light and 0.14 or 0.22)
+
+    Scheme.OutlineSoftColor = Outline:Lerp(Bg, 0.35)
+    Scheme.TextMutedColor = FontColor:Lerp(Bg, 0.45)
+
+    --// Window gradient: a restrained sheen that belongs to the theme. It is kept
+    --// within a small delta of the background so text contrast never suffers.
+    local Start = Light and Bg:Lerp(Color3.new(1, 1, 1), 0.5) or Bg:Lerp(Color3.new(1, 1, 1), 0.045)
+    local EndBase
+    if typeof(Scheme.GradientColor) == "Color3" then
+        EndBase = Bg:Lerp(Scheme.GradientColor, 0.7)
+    else
+        EndBase = Bg:Lerp(Scheme.AccentColor2, Light and 0.06 or 0.12)
+    end
+    local End = ClampTowards(Bg, EndBase, Light and 18 or 26)
+
+    Scheme.GradientStartColor = Start
+    Scheme.GradientEndColor = End
+end
+
 function Library:UpdateColorsUsingRegistry()
+    Library:SyncDesign()
+
     for Inst, Properties in Library.Registry do
         for Property, Index in Properties do
             local SchemeValue = GetSchemeValue(Index)
@@ -2420,6 +2509,10 @@ local function New(ClassName: string, Properties: { [string]: any }): any
         or BackgroundIndex == "BackgroundColor"
         or BackgroundIndex == "MainColor"
         or BackgroundIndex == "DarkColor"
+        or BackgroundIndex == "PanelColor"
+        or BackgroundIndex == "PanelRaisedColor"
+        or BackgroundIndex == "PanelSunkenColor"
+        or BackgroundIndex == "AccentSoftColor"
     ) then
         Library:QueueStyle(inst, "auto")
     end
@@ -2447,6 +2540,18 @@ function Library:StyleTabButton(TabButton: TextButton, ButtonPadding: UIPadding?
     local Style = Library.TabButtonsStyle
     if not Style then
         return
+    end
+
+    --// Active tabs get a soft accent surface instead of being indistinguishable
+    --// from idle tabs. Registered as a function so theme changes keep it in sync.
+    if Library.Registry[TabButton] then
+        Library.Registry[TabButton].BackgroundColor3 = function()
+            local Active = Library.ActiveTab
+            if Active and Active.Button == TabButton then
+                return Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
+            end
+            return Library.Scheme.MainColor
+        end
     end
 
     if Style.CornerRadius > 0 then
@@ -2545,7 +2650,73 @@ function Library:SquareCorners(Frame: GuiObject, Corners: { string }, Radius: nu
     return Object
 end
 
---// Accent fill: the accent color fading into a lighter accent. Used by icon tiles and active tabs. \\--
+--// ---- Corner tokens --------------------------------------------------------
+--// Components ask for a semantic radius instead of reusing the window radius
+--// everywhere. Nested surfaces always step down one size so corners never
+--// fight each other (window > panel > control > small).
+function Library:GetRadius(Kind: string?): number
+    local Window = math.max(tonumber(Library.CornerRadius) or 10, 0)
+    local Radii = Library.Design and Library.Design.Radius or {}
+
+    if Kind == "panel" then
+        return math.max(math.min(Window - 2, Radii.Panel or 10), 4)
+    elseif Kind == "control" then
+        return math.clamp(math.floor(Window * 0.6 + 0.5), 4, 8)
+    elseif Kind == "small" then
+        return math.clamp(math.floor(Window * 0.4 + 0.5), 3, 6)
+    elseif Kind == "pill" then
+        return 999
+    end
+
+    return Window
+end
+
+--// Fills a frame with a surface rounded on a single edge ("top" or "bottom").
+--// UICorner can only round all four corners, so the fill is drawn Radius taller
+--// than the frame and the parent clips the overflow: the far corners are cut
+--// away and the requested edge stays properly rounded. Used by the window's
+--// top strip and footer so they meet the content with a square seam.
+--// Fills a frame with a surface rounded on a single edge ("top" or "bottom").
+--// UICorner can only round all four corners, so the fill is drawn Radius taller
+--// than the frame and the parent clips the overflow: the far corners are cut
+--// away and the requested edge stays properly rounded. Used by the window's
+--// top strip and footer so they meet the content with a square seam.
+function Library:AddEdgeFill(Frame: GuiObject, Edge: string, ColorIndex: string?, Radius: number?, Mode: string?): GuiObject
+    local R = Radius or Library:GetRadius("panel")
+    local Fill = New("Frame", {
+        BackgroundColor3 = ColorIndex or "PanelColor",
+        BorderSizePixel = 0,
+        Name = "EdgeFill",
+        --// Size = parent height + R so the fill extends one radius past the far edge.
+        --// Parent (Frame) clips the overflow, leaving only the requested edge rounded.
+        Size = UDim2.new(1, 0, 1, R),
+        ZIndex = Frame.ZIndex,
+        Parent = Frame,
+    })
+
+    if Edge == "bottom" then
+        --// Anchor the fill's bottom edge to the parent's bottom edge; the fill's
+        --// bottom corners (rounded) sit at the parent bottom edge, its top corners
+        --// sit R px above the parent top edge and are clipped away -> square top.
+        Fill.AnchorPoint = Vector2.new(0, 1)
+        Fill.Position = UDim2.new(0, 0, 1, 0)
+    else
+        --// Top: fill top-left at parent top-left; fill's top corners (rounded) sit
+        --// at the parent top edge, its bottom corners extend past the parent bottom
+        --// and are clipped away -> square bottom.
+        Fill.Position = UDim2.fromOffset(0, 0)
+    end
+
+    Frame.BackgroundTransparency = 1
+    Frame.ClipsDescendants = true
+
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, R), Parent = Fill }))
+    Library.StyleTargets[Fill] = Mode or "panel"
+
+    return Fill
+end
+
+
 function Library:GetAccentSequence(): ColorSequence
     local Accent = Library.Scheme.AccentColor
     return ColorSequence.new(Accent, Accent:Lerp(Color3.new(1, 1, 1), 0.22))
@@ -4884,7 +5055,7 @@ function Library:AddContextMenu(
         Menu = New("ScrollingFrame", {
             AutomaticCanvasSize = List == 2 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             AutomaticSize = List == 1 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = "PanelColor",
             BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
             CanvasSize = UDim2.fromOffset(0, 0),
             ScrollBarImageColor3 = "OutlineColor",
@@ -4898,7 +5069,7 @@ function Library:AddContextMenu(
         Library:AddCustomScrollbar(Menu)
     else
         Menu = New("Frame", {
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = "PanelColor",
             Size = typeof(Size) == "function" and Size() or Size,
             Visible = false,
             ZIndex = BaseZIndex,
@@ -5096,7 +5267,7 @@ end))
 
 local TooltipLabel = New("TextLabel", {
     AutomaticSize = Enum.AutomaticSize.Y,
-    BackgroundColor3 = "BackgroundColor",
+    BackgroundColor3 = "PanelColor",
     TextSize = 14,
     TextWrapped = true,
     Visible = false,
@@ -13706,7 +13877,7 @@ do
 
         do
             ConditionalSectionContainer = New("Frame", {
-                BackgroundColor3 = "BackgroundColor",
+                BackgroundColor3 = "PanelColor",
                 Size = UDim2.fromScale(1, 0),
                 Visible = false,
                 Parent = BoxHolder,
@@ -13714,7 +13885,7 @@ do
             table.insert(
                 Library.Corners,
                 New("UICorner", {
-                    CornerRadius = UDim.new(0, Library.CornerRadius),
+                    CornerRadius = UDim.new(0, Library:GetRadius("panel")),
                     Parent = ConditionalSectionContainer,
                 })
             )
@@ -13979,7 +14150,7 @@ do
             Library:AddToRegistry(SubSectionArrow, { ImageColor3 = "FontColor" })
 
             SubSectionContainer = New("Frame", {
-                BackgroundColor3 = "BackgroundColor",
+                BackgroundColor3 = "PanelSunkenColor",
                 BackgroundTransparency = 0.5,
                 Position = UDim2.fromOffset(0, 29),
                 Size = UDim2.new(1, 0, 1, -29),
@@ -14957,6 +15128,7 @@ function Library:CreateWindow(WindowInfo)
             Position = WindowInfo.Position,
             Size = WindowInfo.Size,
             Visible = false,
+            ClipsDescendants = true,
 
             ZIndex = Library.BaseZIndex,
             Parent = ScreenGui,
@@ -14996,28 +15168,9 @@ function Library:CreateWindow(WindowInfo)
             Parent = Library.GradientOverlay,
         })
 
-        --// Gradient artwork: a subtle image gradient layered over the color gradient so the
-        --// window backdrop has depth. Lives inside the overlay so it inherits the overlay's
-        --// ZIndex (below all content) and visibility, and follows the same transparency. \--
-        Library.GradientTexture = New("ImageLabel", {
-            Name = "GradientTexture",
-            Image = CustomImageManager.GetAsset("GradientBackground"),
-            ScaleType = Enum.ScaleType.Stretch,
-            Size = UDim2.fromScale(1, 1),
-            ImageTransparency = Library.GradientTextureTransparency,
-            Visible = Library.GradientsEnabled,
-            Parent = Library.GradientOverlay,
-        })
-        table.insert(
-            Library.Corners,
-            New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = Library.GradientTexture,
-            })
-        )
-        Library.GradientTextureGradient = New("UIGradient", {
-            Parent = Library.GradientTexture,
-        })
+        --// The backdrop is painted by a single theme-derived gradient (see
+        --// Library:GetGradientSequence). There is no bitmap layer stacked on top:
+        --// that is what made older builds look patchy and off-palette.
         Library.StyleTargets[MainFrame] = "main"
         Library.StyleRoots[MainFrame] = true
         Library.MainWindowScale = MainWindowScale
@@ -15108,8 +15261,9 @@ function Library:CreateWindow(WindowInfo)
             })
         )
 
-        --// The top bar fill is made of pieces that never overlap, so a semi-transparent window shows one even
-        --// colour: a clipped cap whose top corners are rounded, and a flat body underneath it. \\--
+        --// Top strip: a single fill rounded on the top edge only, clipped by a
+        --// cap. Previously this stacked two all-rounded pieces and the seam
+        --// showed through semi-transparent windows.
         local TopCap = New("Frame", {
             Name = "TopBackgroundCap",
             BackgroundTransparency = 1,
@@ -15119,36 +15273,24 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        local TopBackground = New("Frame", {
-            Name = "TopBackground",
-            BackgroundColor3 = "BackgroundColor",
-            Position = UDim2.fromScale(0, 0),
-            Size = UDim2.new(1, 0, 0, WindowInfo.CornerRadius * 2),
-            ZIndex = MainFrame.ZIndex,
-            Parent = TopCap,
-        })
-        table.insert(
-            Library.Corners,
-            New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = TopBackground,
-            })
-        )
+        local TopBackground = Library:AddEdgeFill(TopCap, "top", "PanelColor", WindowInfo.CornerRadius, "panel")
+        TopBackground.Name = "TopBackground"
+        TopBackground.Size = UDim2.new(1, 0, 1, WindowInfo.CornerRadius)
+
         local TopFlatBottom = New("Frame", {
             Name = "TopFlatBottom",
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = "PanelColor",
             BorderSizePixel = 0,
             Position = UDim2.fromOffset(0, WindowInfo.CornerRadius),
             Size = UDim2.new(1, 0, 0, 48 - WindowInfo.CornerRadius),
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        Library.StyleTargets[TopBackground] = "panel"
         Library.StyleTargets[TopFlatBottom] = "panel"
 
         Library.LayoutTopBar = function(Radius: number)
             TopCap.Size = UDim2.new(1, 0, 0, Radius)
-            TopBackground.Size = UDim2.new(1, 0, 0, Radius * 2)
+            TopBackground.Size = UDim2.new(1, 0, 1, Radius)
             TopFlatBottom.Position = UDim2.fromOffset(0, Radius)
             TopFlatBottom.Size = UDim2.new(1, 0, 0, 48 - Radius)
         end
@@ -15349,7 +15491,7 @@ function Library:CreateWindow(WindowInfo)
         table.insert(
             Library.Corners,
             New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                CornerRadius = UDim.new(0, Library:GetRadius("control")),
                 Parent = SearchBox,
             })
         )
@@ -15468,7 +15610,8 @@ function Library:CreateWindow(WindowInfo)
 
         BottomBackground = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, math.max(20, WindowInfo.CornerRadius * 2)),
             Parent = MainFrame
@@ -15479,7 +15622,10 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, 0, 0, 1),
         })
 
-        Library.StyleTargets[BottomBackground] = "panel"
+        --// Footer fill is rounded on the bottom edge only; the straight top edge
+        --// meets the content area cleanly.
+        local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "PanelColor", WindowInfo.CornerRadius, "panel")
+        BottomFill.Name = "BottomFill"
 
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -15488,13 +15634,6 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, 0, 0, 20),
             Parent = MainFrame,
         })
-        table.insert(
-            Library.Corners,
-            New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = BottomBackground,
-            })
-        )
 
         --// Footer slots: Left / Middle / Right. The Footer text lives in the middle
         --// slot (as before); extra items can be added to any slot. \\--
@@ -15566,7 +15705,7 @@ function Library:CreateWindow(WindowInfo)
         Library:RegisterIconInstance(ResizeImage, "move-diagonal-2")
 
         Sidebar = New("Frame", {
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = "PanelColor",
             Position = UDim2.fromOffset(0, 48),
             Size = UDim2.new(0, InitialLeftWidth, 1, -68),
             Parent = MainFrame,
@@ -16830,7 +16969,7 @@ function Library:CreateWindow(WindowInfo)
         local WarningText
         do
             WarningBox = New("Frame", {
-                BackgroundColor3 = "BackgroundColor",
+                BackgroundColor3 = "PanelColor",
                 Position = UDim2.fromOffset(2, 0),
                 Size = UDim2.new(1, -5, 0, 0),
                 Parent = WarningBoxHolder,
@@ -16838,7 +16977,7 @@ function Library:CreateWindow(WindowInfo)
             table.insert(
                 Library.Corners,
                 New("UICorner", {
-                    CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                    CornerRadius = UDim.new(0, Library:GetRadius("panel")),
                     Parent = WarningBox,
                 })
             )
@@ -16945,7 +17084,7 @@ function Library:CreateWindow(WindowInfo)
             WarningText.Text = Tab.WarningBox.Text
             Tab:Resize(true)
 
-            WarningBox.BackgroundColor3 = Tab.WarningBox.IsNormal == true and Library.Scheme.BackgroundColor
+            WarningBox.BackgroundColor3 = Tab.WarningBox.IsNormal == true and Library.Scheme.PanelColor
                 or Color3.fromRGB(127, 0, 0)
 
             WarningBoxShadowOutline.Color = Tab.WarningBox.IsNormal == true and Library.Scheme.DarkColor
@@ -16975,7 +17114,7 @@ function Library:CreateWindow(WindowInfo)
             end
 
             Library.Registry[WarningBox].BackgroundColor3 = function()
-                return Tab.WarningBox.IsNormal == true and Library.Scheme.BackgroundColor or Color3.fromRGB(127, 0, 0)
+                return Tab.WarningBox.IsNormal == true and Library.Scheme.PanelColor or Color3.fromRGB(127, 0, 0)
             end
 
             Library.Registry[WarningBoxShadowOutline].Color = function()
@@ -17077,14 +17216,14 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionHolder = New("Frame", {
-                    BackgroundColor3 = "BackgroundColor",
+                    BackgroundColor3 = "PanelColor",
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
                 table.insert(
                     Library.Corners,
                     New("UICorner", {
-                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
                         Parent = SectionHolder,
                     })
                 )
@@ -17631,14 +17770,14 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionGroupHolder = New("Frame", {
-                    BackgroundColor3 = "BackgroundColor",
+                    BackgroundColor3 = "PanelColor",
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
                 table.insert(
                     Library.Corners,
                     New("UICorner", {
-                        CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
                         Parent = SectionGroupHolder,
                     })
                 )
@@ -17973,8 +18112,13 @@ function Library:CreateWindow(WindowInfo)
                 Library.ActiveTab:Hide()
             end
 
+            TabButton.BackgroundColor3 = Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
+            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
+            if ActiveIndicator then
+                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 0 }):Play()
+            end
             TweenService:Create(TabButton, Library.TweenInfo, {
-                BackgroundTransparency = 1,
+                BackgroundTransparency = 0,
             }):Play()
             TweenService:Create(TabLabel, Library.TweenInfo, {
                 TextTransparency = 0,
@@ -18001,6 +18145,11 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:Hide()
+            TabButton.BackgroundColor3 = Library.Scheme.MainColor
+            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
+            if ActiveIndicator then
+                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
             }):Play()
@@ -18322,8 +18471,13 @@ function Library:CreateWindow(WindowInfo)
                 Library.ActiveTab:Hide()
             end
 
+            TabButton.BackgroundColor3 = Library.Scheme.AccentSoftColor or Library.Scheme.MainColor
+            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
+            if ActiveIndicator then
+                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 0 }):Play()
+            end
             TweenService:Create(TabButton, Library.TweenInfo, {
-                BackgroundTransparency = 1,
+                BackgroundTransparency = 0,
             }):Play()
             TweenService:Create(TabLabel, Library.TweenInfo, {
                 TextTransparency = 0,
@@ -18351,6 +18505,11 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:Hide()
+            TabButton.BackgroundColor3 = Library.Scheme.MainColor
+            local ActiveIndicator = TabButton:FindFirstChild("ActiveIndicator")
+            if ActiveIndicator then
+                TweenService:Create(ActiveIndicator, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+            end
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
             }):Play()
@@ -18446,7 +18605,7 @@ function Library:CreateWindow(WindowInfo)
 
         DialogFrame = New("TextButton", {
             AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundColor3 = "PanelColor",
             BackgroundTransparency = 0,
             Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.fromOffset(300, 0),
@@ -20776,9 +20935,8 @@ function Library:CreateLoading(LoadingInfo)
         Visible = Loading.ShowSidebar,
         Parent = MainFrame,
     })
-    local SidebarCorner = New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = SideBar })
-    table.insert(Library.Corners, SidebarCorner)
-
+    --// The sidebar is flush with the window edges, so it must not carry its own
+    --// rounded corners; the window clip already shapes the outer corners.
     Library:AddOutline(SideBar)
 
     local SidebarDivider = New("Frame", {
