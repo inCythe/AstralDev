@@ -15006,7 +15006,6 @@ function Library:CreateWindow(WindowInfo)
     local BottomLine
     local DiscordBtn
     local DiscordBtnHeight
-    local DiscordPillWidth
     local MainWindowScale
 
     local InitialLeftWidth = WindowInfo.SidebarWidth or math.ceil(WindowInfo.Size.X.Offset * 0.22)
@@ -15853,22 +15852,27 @@ function Library:CreateWindow(WindowInfo)
         --// bottom corners by the footer fill, so rounding all four is seamless. \
         New("UIPadding", {
             PaddingTop = UDim.new(0, 52), --// clears the 48px top bar
+            PaddingBottom = UDim.new(0, 10),
             Parent = Sidebar,
         })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
+            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            Padding = UDim.new(0, 8),
             SortOrder = Enum.SortOrder.LayoutOrder,
             Parent = Sidebar,
         })
 
         DiscordBtnHeight = (WindowInfo.DiscordLink and typeof(WindowInfo.DiscordLink) == "string") and 36 or 0
 
-        --// Non-scrolling viewport around the tab list so edge fades and the
-        --// floating Discord pill can overlay the scroll without scrolling away. \
+        --// Non-scrolling viewport around the tab list so edge fades can overlay
+        --// the scroll without scrolling away. Its height leaves room for the top
+        --// padding, bottom padding and the Discord slot when one exists. \
         local TabsViewport = New("Frame", {
             BackgroundTransparency = 1,
+            LayoutOrder = 1,
             Name = "TabsViewport",
-            Size = UDim2.fromScale(1, 1),
+            Size = UDim2.new(1, 0, 1, -(62 + (DiscordBtnHeight > 0 and DiscordBtnHeight + 8 or 0))),
             Parent = Sidebar,
         })
 
@@ -15900,7 +15904,7 @@ function Library:CreateWindow(WindowInfo)
         --// fade is taller so content melts away before it reaches the Discord pill. \
         local TabsFadeZ = Tabs.ZIndex + 1
         Library:AddEdgeFade(TabsViewport, "top", 20, "PanelColor", TabsFadeZ)
-        Library:AddEdgeFade(TabsViewport, "bottom", DiscordBtnHeight > 0 and 52 or 20, "PanelColor", TabsFadeZ)
+        Library:AddEdgeFade(TabsViewport, "bottom", 20, "PanelColor", TabsFadeZ)
 
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
@@ -15935,19 +15939,16 @@ function Library:CreateWindow(WindowInfo)
                 end
             end
 
-            --// Floating Discord pill: docked to the bottom-center of the sidebar,
-            --// overlaying the tab scroll so the edge fade can dissolve tabs beneath it. \
-            local DiscordTextWidth = select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200))
-            DiscordPillWidth = math.ceil(DiscordTextWidth) + 76 --// 20 padding + 18 icon + 10 gap + 20 padding + 8 breathing room
+            --// Discord button: full-width row docked at the bottom of the sidebar
+            --// (8px side padding via the -16 width + centered list alignment). \
             DiscordBtn = New("TextButton", {
-                AnchorPoint = Vector2.new(0.5, 1),
                 BackgroundColor3 = "PanelColor",
                 BorderSizePixel = 0,
-                Position = UDim2.new(0.5, 0, 1, -10),
-                Size = UDim2.fromOffset(DiscordPillWidth, 36),
+                LayoutOrder = 2,
+                Size = UDim2.new(1, -16, 0, 36),
                 Text = "",
                 ZIndex = Tabs.ZIndex + 2,
-                Parent = TabsViewport,
+                Parent = Sidebar,
             })
             table.insert(
                 Library.Corners,
@@ -16563,8 +16564,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if DiscordBtn then
-            --// Compact sidebar is only 48px wide: collapse the pill to its icon. \
-            DiscordBtn.Size = UDim2.fromOffset(IsCompact and 44 or (DiscordPillWidth or 120), 36)
+            --// Compact sidebar is only 48px wide: collapse the button to its icon. \
             local PillPadding = DiscordBtn:FindFirstChildOfClass("UIPadding")
             if PillPadding then
                 PillPadding.PaddingLeft = UDim.new(0, IsCompact and 6 or 20)
