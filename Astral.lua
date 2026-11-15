@@ -3584,6 +3584,39 @@ local function ScrollbarAncestorsVisible(Scroll: ScrollingFrame): boolean
     return true
 end
 
+--// Top + bottom edge fades for a ScrollingFrame, shown only when there is
+--// actually hidden content in that direction: the top fade appears once the
+--// canvas is scrolled down, the bottom fade only while more content sits below
+--// the viewport. When everything fits, neither fade renders. \--
+function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?)
+    local Top = Library:AddEdgeFade(Host, "top", Thickness or 20, ColorIndex, ZIndex)
+    local Bottom = Library:AddEdgeFade(Host, "bottom", Thickness or 20, ColorIndex, ZIndex)
+
+    local function Update()
+        if not ScrollbarAncestorsVisible(Scroll) then
+            Top.Visible = false
+            Bottom.Visible = false
+            return
+        end
+
+        local Canvas = Scroll.AbsoluteCanvasSize.Y
+        local View = Scroll.AbsoluteWindowSize.Y
+        local Pos = Scroll.CanvasPosition.Y
+        local Overflow = Canvas > View + 1
+
+        Top.Visible = Overflow and Pos > 1
+        Bottom.Visible = Overflow and (Pos + View) < Canvas - 1
+    end
+
+    Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(Update)
+    Scroll:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(Update)
+    Scroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(Update)
+    Scroll:GetPropertyChangedSignal("Visible"):Connect(Update)
+    Update()
+
+    return Top, Bottom
+end
+
 function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
     if not Scroll or not Scroll:IsA("ScrollingFrame") then
         return
@@ -15903,8 +15936,7 @@ function Library:CreateWindow(WindowInfo)
         --// Edge fades dissolve scrolled tabs into the sidebar surface. The bottom
         --// fade is taller so content melts away before it reaches the Discord pill. \
         local TabsFadeZ = Tabs.ZIndex + 1
-        Library:AddEdgeFade(TabsViewport, "top", 20, "PanelColor", TabsFadeZ)
-        Library:AddEdgeFade(TabsViewport, "bottom", 20, "PanelColor", TabsFadeZ)
+        Library:AddScrollEdgeFades(TabsViewport, Tabs, "PanelColor", TabsFadeZ)
 
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
@@ -17080,8 +17112,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddEdgeFade(TabContainer, "top", 20, PageFadeColor, PageFadeZ)
-            Library:AddEdgeFade(TabContainer, "bottom", 20, PageFadeColor, PageFadeZ)
+            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ)
 
             do
                 New("Frame", {
@@ -18567,14 +18598,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            local KeyTopFade = Library:AddEdgeFade(Container, "top", 20, PageFadeColor, PageFadeZ)
-            local KeyBottomFade = Library:AddEdgeFade(Container, "bottom", 20, PageFadeColor, PageFadeZ)
-            KeyTopFade.Visible = false
-            KeyBottomFade.Visible = false
-            TabContainer:GetPropertyChangedSignal("Visible"):Connect(function()
-                KeyTopFade.Visible = TabContainer.Visible
-                KeyBottomFade.Visible = TabContainer.Visible
-            end)
+            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ)
         end
 
         local Tab = {
