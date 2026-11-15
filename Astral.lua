@@ -2726,6 +2726,35 @@ function Library:AddEdgeFill(Frame: GuiObject, Edge: string, ColorIndex: string?
     return Fill
 end
 
+--// Soft edge fade for scrolling surfaces: a thin frame painted in the surface's
+--// own color whose UIGradient Transparency runs from opaque at the edge to fully
+--// transparent inward, so scrolled content dissolves instead of hard-clipping.
+--// Parent must be a non-scrolling host (siblings of the ScrollingFrame), and the
+--// fade's ZIndex should sit one step above the scroll content. \--
+function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?): GuiObject
+    local Fade = New("Frame", {
+        AnchorPoint = Edge == "top" and Vector2.zero or Vector2.new(0, 1),
+        BackgroundColor3 = ColorIndex,
+        BorderSizePixel = 0,
+        Name = "EdgeFade_" .. Edge,
+        Position = Edge == "top" and UDim2.fromOffset(0, 0) or UDim2.new(0, 0, 1, 0),
+        Size = UDim2.new(1, 0, 0, Thickness),
+        ZIndex = ZIndex,
+        Parent = Parent,
+    })
+
+    New("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, Edge == "top" and 0 or 1),
+            NumberSequenceKeypoint.new(1, Edge == "top" and 1 or 0),
+        }),
+        Parent = Fade,
+    })
+
+    return Fade
+end
+
 --// Soft drop shadow drawn behind a surface. The shadow is a child with a ZIndex
 --// below its parent, so under ZIndexBehavior.Global it renders behind the parent's
 --// own background and peeks out around the edges (parents must not clip
@@ -14977,6 +15006,7 @@ function Library:CreateWindow(WindowInfo)
     local BottomLine
     local DiscordBtn
     local DiscordBtnHeight
+    local DiscordPillWidth
     local MainWindowScale
 
     local InitialLeftWidth = WindowInfo.SidebarWidth or math.ceil(WindowInfo.Size.X.Offset * 0.22)
@@ -15832,6 +15862,16 @@ function Library:CreateWindow(WindowInfo)
         })
 
         DiscordBtnHeight = (WindowInfo.DiscordLink and typeof(WindowInfo.DiscordLink) == "string") and 36 or 0
+
+        --// Non-scrolling viewport around the tab list so edge fades and the
+        --// floating Discord pill can overlay the scroll without scrolling away. \
+        local TabsViewport = New("Frame", {
+            BackgroundTransparency = 1,
+            Name = "TabsViewport",
+            Size = UDim2.fromScale(1, 1),
+            Parent = Sidebar,
+        })
+
         Tabs = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
@@ -15841,7 +15881,7 @@ function Library:CreateWindow(WindowInfo)
             ScrollBarThickness = 0,
             ScrollBarImageTransparency = 1,
             Size = UDim2.new(1, 0, 1, 0),
-            Parent = Sidebar,
+            Parent = TabsViewport,
         })
         -- Library:AddCustomScrollbar(Tabs)
         local TabsLayout = New("UIListLayout", {
@@ -15855,6 +15895,12 @@ function Library:CreateWindow(WindowInfo)
             PaddingRight = UDim.new(0, 10 + WindowInfo.TabButtonsStyle.Padding),
             Parent = Tabs,
         })
+
+        --// Edge fades dissolve scrolled tabs into the sidebar surface. The bottom
+        --// fade is taller so content melts away before it reaches the Discord pill. \
+        local TabsFadeZ = Tabs.ZIndex + 1
+        Library:AddEdgeFade(TabsViewport, "top", 28, "PanelColor", TabsFadeZ)
+        Library:AddEdgeFade(TabsViewport, "bottom", DiscordBtnHeight > 0 and 64 or 28, "PanelColor", TabsFadeZ)
 
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
@@ -15889,18 +15935,19 @@ function Library:CreateWindow(WindowInfo)
                 end
             end
 
-            --// Floating Discord pill: anchored to the window's bottom-right corner,
-            --// hovering above the footer instead of living inside the sidebar. \
+            --// Floating Discord pill: docked to the bottom-center of the sidebar,
+            --// overlaying the tab scroll so the edge fade can dissolve tabs beneath it. \
+            local DiscordTextWidth = select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200))
+            DiscordPillWidth = math.ceil(DiscordTextWidth) + 54 --// 14 padding + 18 icon + 8 gap + 14 padding
             DiscordBtn = New("TextButton", {
-                AnchorPoint = Vector2.new(1, 1),
-                AutomaticSize = Enum.AutomaticSize.X,
+                AnchorPoint = Vector2.new(0.5, 1),
                 BackgroundColor3 = "PanelColor",
                 BorderSizePixel = 0,
-                Position = UDim2.new(1, -14, 1, -34),
-                Size = UDim2.new(0, 0, 0, 36),
+                Position = UDim2.new(0.5, 0, 1, -10),
+                Size = UDim2.fromOffset(DiscordPillWidth, 36),
                 Text = "",
-                ZIndex = MainFrame.ZIndex + 2,
-                Parent = MainFrame,
+                ZIndex = Tabs.ZIndex + 2,
+                Parent = TabsViewport,
             })
             table.insert(
                 Library.Corners,
@@ -15972,9 +16019,9 @@ function Library:CreateWindow(WindowInfo)
             })
 
             task.defer(function()
-                DiscordTextLabel.Visible = true
-                DiscordImgLabel.Visible = true
-                DiscordCompactIcon.Visible = false
+                DiscordTextLabel.Visible = not IsCompact
+                DiscordImgLabel.Visible = not IsCompact
+                DiscordCompactIcon.Visible = IsCompact
 
                 local Resolved = CustomImageManager.GetAsset("DiscordIcon")
                 if Resolved and DiscordImgLabel and DiscordImgLabel.Parent then
@@ -16516,12 +16563,17 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if DiscordBtn then
-            --// Floating pill always shows icon + label regardless of sidebar compactness. \
+            --// Compact sidebar is only 48px wide: collapse the pill to its icon. \
+            DiscordBtn.Size = UDim2.fromOffset(IsCompact and 44 or (DiscordPillWidth or 120), 36)
             for _, Child in DiscordBtn:GetDescendants() do
                 if Child:IsA("TextLabel") then
-                    Child.Visible = true
-                elseif Child:IsA("ImageLabel") and Child.Name ~= "DiscordCompactIcon" then
-                    Child.Visible = true
+                    Child.Visible = not IsCompact
+                elseif Child:IsA("ImageLabel") then
+                    if Child.Name == "DiscordCompactIcon" then
+                        Child.Visible = IsCompact
+                    else
+                        Child.Visible = not IsCompact
+                    end
                 end
             end
         end
@@ -17016,6 +17068,16 @@ function Library:CreateWindow(WindowInfo)
                 PaddingTop = UDim.new(0, 2),
                 Parent = TabScroll,
             })
+
+            --// Edge fades dissolve scrolled page content into the container surface.
+            --// They are siblings of the scroll (not children) so they stay pinned. \
+            local PageFadeZ = TabScroll.ZIndex + 1
+            local PageFadeColor = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
+            end
+            Library:AddEdgeFade(TabContainer, "top", 28, PageFadeColor, PageFadeZ)
+            Library:AddEdgeFade(TabContainer, "bottom", 28, PageFadeColor, PageFadeZ)
+
             do
                 New("Frame", {
                     BackgroundTransparency = 1,
@@ -18492,6 +18554,22 @@ function Library:CreateWindow(WindowInfo)
                 PaddingRight = UDim.new(0, 1),
                 Parent = TabContainer,
             })
+
+            --// Edge fades dissolve scrolled page content into the container surface.
+            --// The scroll itself can't host them (children scroll with the canvas),
+            --// so they live on Container and mirror the scroll's visibility. \
+            local PageFadeZ = TabContainer.ZIndex + 1
+            local PageFadeColor = function()
+                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
+            end
+            local KeyTopFade = Library:AddEdgeFade(Container, "top", 28, PageFadeColor, PageFadeZ)
+            local KeyBottomFade = Library:AddEdgeFade(Container, "bottom", 28, PageFadeColor, PageFadeZ)
+            KeyTopFade.Visible = false
+            KeyBottomFade.Visible = false
+            TabContainer:GetPropertyChangedSignal("Visible"):Connect(function()
+                KeyTopFade.Visible = TabContainer.Visible
+                KeyBottomFade.Visible = TabContainer.Visible
+            end)
         end
 
         local Tab = {

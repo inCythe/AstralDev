@@ -3202,6 +3202,8 @@ The window gradient is now painted from a theme-derived three-stop sequence: a s
 
 Custom themes save their gradient color. The Gradients toggle and transparency slider are saved in your SaveManager config.
 
+Scrolling surfaces dissolve at their edges instead of hard-clipping: the sidebar tab list fades out at the top and bottom (the bottom fade is taller so tabs melt away before the floating Discord pill), and every tab page scroll fades at its top and bottom edges. The Discord button is a floating pill docked to the bottom-center of the sidebar; in compact sidebar mode it collapses to an icon-only button.
+
 ---
 
 #### Key Properties
