@@ -203,7 +203,7 @@ local Window = Library:CreateWindow({
     AutoShow     = true,
     Resizable    = true,
     AlwaysOnTop  = false,
-    CornerRadius = 6,
+    CornerRadius = 10,
     Font         = Enum.Font.GothamMedium,
     TitleSize    = 20,
     DPIScale     = 5,
@@ -2653,7 +2653,7 @@ Astral is dependent on a few icons to be able to be displayed properly. Please m
 
 If you'd like to use custom hosted images (like those on Github) with a Roblox Asset ID as a fallback, you can use the built-in ImageManager.
 
-`GetCustomIcon` resolves, in order: (1) a *named* asset registered via `ImageManager.AddAsset` -- this covers the built-ins (`"AstralIcon"`, `"DiscordIcon"`, `"LoadingIcon"`, `"CheckIcon"`, `"TransparencyTexture"`, `"SaturationMap"`); (2) a raw `rbxasset://` / `rbxthumb://` / asset-URL string; (3) a Lucide icon name via `GetIcon`.
+`GetCustomIcon` resolves, in order: (1) a *named* asset registered via `ImageManager.AddAsset` -- this covers the built-ins (`"AstralIcon"`, `"DiscordIcon"`, `"LoadingIcon"`, `"CheckIcon"`, `"TransparencyTexture"`, `"SaturationMap"`, `"GradientBackground"`); (2) a raw `rbxasset://` / `rbxthumb://` / asset-URL string; (3) a Lucide icon name via `GetIcon`.
 
 ###### AddAsset
 
@@ -3190,6 +3190,8 @@ Window:SetGradient(true)
 
 The gradient and transparency cover the whole UI: the window, tab pages, sections, every control (including search boxes and inputs) and every overlay (draggable menus and labels, notifications, context menus, popped-out sections). Overlays get their own gradient and are fully opaque until you raise the transparency. Controls always let a little of the gradient show through while gradients are on.
 
+On top of the color gradient, the window also renders a subtle gradient artwork layer (`assets/Gradient.png`, registered as the built-in `"GradientBackground"` image). It sits above the color gradient and below any custom `BackgroundImage`, follows the same **Gradients** toggle, and fades out as window transparency rises. Its base opacity is `Library.GradientTextureTransparency` (default `0.8` ImageTransparency).
+
 Custom themes save their gradient color. The Gradients toggle and transparency slider are saved in your SaveManager config.
 
 ---
@@ -3485,4 +3487,4 @@ If you run into a bug or inconsistency, please open an issue on the repository w
 
 ### Suggesting Features
 
-Feature requests are welcome. Please check the existing documentation first to confirm the behavior isn't already supported under a different method name.
+Feature requests are welcome. Please check the existing documentation first to confirm the behavior isn't already supported under a different method name.

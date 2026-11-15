@@ -91,6 +91,15 @@ local CustomImageManagerAssets = {
         Id = nil,
         BuiltIn = true,
     },
+
+    GradientBackground = {
+        RobloxId = 70836390604112,
+        Path = "Astral/assets/Gradient.png",
+        URL = BaseURL .. "assets/Gradient.png",
+
+        Id = nil,
+        BuiltIn = true,
+    },
 }
 do
     local function RecursiveCreatePath(Path: string, IsFile: boolean?)
@@ -348,7 +357,7 @@ local Library = {
     OriginalMinSize = Vector2.new(480, 360),
     MinSize = Vector2.new(480, 360),
     DPIScale = 1,
-    CornerRadius = 6,
+    CornerRadius = 10,
     CornerRadiusDropdown = true,
 
     IsLightTheme = false,
@@ -487,7 +496,7 @@ local Templates = {
         TabSwipeFrom = "bottom",
 
         SearchbarSize = UDim2.fromScale(1, 1),
-        CornerRadius = 6,
+        CornerRadius = 10,
         NotifySide = "Right",
         ShowCustomCursor = false,
         Font = Enum.Font.GothamMedium,
@@ -1620,6 +1629,7 @@ end
 Library.WindowTransparency = 0
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
+Library.GradientTextureTransparency = 0.8 --// base ImageTransparency of the gradient artwork; fades out with window transparency
 Library.GradientPanelTransparency = 0.1 --// panels are 90% opaque
 Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "panel" | "card"
 Library.StyleBase = setmetatable({}, { __mode = "k" }) --// Instance -> original BackgroundTransparency
@@ -1777,6 +1787,21 @@ function Library:UpdateWindowStyle()
         Library.GradientObject.Color = ColorSequence.new(Start, End)
         Library.GradientObject.Rotation = Library.GradientRotation
         Library.GradientObject.Transparency = NumberSequence.new(Library.WindowTransparency)
+    end
+
+    --// Gradient artwork layer: sits above the color gradient and fades out with the window. \--
+    local Texture = Library.GradientTexture
+    if Texture and Texture.Parent then
+        Texture.Visible = Library.GradientsEnabled
+        Texture.ImageTransparency =
+            1 - (1 - Library.GradientTextureTransparency) * (1 - Library.WindowTransparency)
+
+        local TintGradient = Library.GradientTextureGradient
+        if TintGradient then
+            local Tint = Library.IsLightTheme and Color3.fromRGB(240, 243, 250) or Color3.fromRGB(215, 225, 245)
+            TintGradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Tint)
+            TintGradient.Rotation = Library.GradientRotation
+        end
     end
 
     for Inst, Mode in Library.StyleTargets do
@@ -14970,6 +14995,29 @@ function Library:CreateWindow(WindowInfo)
         Library.GradientObject = New("UIGradient", {
             Parent = Library.GradientOverlay,
         })
+
+        --// Gradient artwork: a subtle image gradient layered over the color gradient so the
+        --// window backdrop has depth. Lives inside the overlay so it inherits the overlay's
+        --// ZIndex (below all content) and visibility, and follows the same transparency. \--
+        Library.GradientTexture = New("ImageLabel", {
+            Name = "GradientTexture",
+            Image = CustomImageManager.GetAsset("GradientBackground"),
+            ScaleType = Enum.ScaleType.Stretch,
+            Size = UDim2.fromScale(1, 1),
+            ImageTransparency = Library.GradientTextureTransparency,
+            Visible = Library.GradientsEnabled,
+            Parent = Library.GradientOverlay,
+        })
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = Library.GradientTexture,
+            })
+        )
+        Library.GradientTextureGradient = New("UIGradient", {
+            Parent = Library.GradientTexture,
+        })
         Library.StyleTargets[MainFrame] = "main"
         Library.StyleRoots[MainFrame] = true
         Library.MainWindowScale = MainWindowScale
@@ -21406,7 +21454,7 @@ function Library:BuildAllSettings(tab, ThemeManager, SaveManager)
         Callback = function(Value) if Library.Window then Library.Window:ChangeTitle(Value) end end 
     })
     WindowSection:AddSlider("WindowCorners", {
-        Text = "Corner radius", Default = Library.CornerRadius or 6, Min = 0, Max = 20, Rounding = 0,
+        Text = "Corner radius", Default = Library.CornerRadius or 10, Min = 0, Max = 20, Rounding = 0,
         Callback = function(Value)
             if Library.Window then Library.Window:SetCornerRadius(Value) end
         end,
