@@ -2767,6 +2767,37 @@ function Library:AddShadow(Frame: GuiObject, Options: { [string]: any }?)
     local Drop = Options.Drop or 6
     local Radius = Options.Radius or (Library.CornerRadius or 10)
 
+    --// A shadow child would be treated as a layout item when the frame has a
+    --// UIListLayout/UIGridLayout/UIFlexLayout/UIPageLayout, corrupting the
+    --// arrangement (this broke table blocks and the Discord button). In that
+    --// case the shadow is parked on the nearest ancestor without a layout and
+    --// mirrors the frame's absolute rect instead. \--
+    local function HasLayout(Inst: Instance): boolean
+        return Inst:FindFirstChildOfClass("UIListLayout") ~= nil
+            or Inst:FindFirstChildOfClass("UIGridLayout") ~= nil
+            or Inst:FindFirstChildOfClass("UIFlexLayout") ~= nil
+            or Inst:FindFirstChildOfClass("UIPageLayout") ~= nil
+    end
+
+    local Host: Instance = Frame
+    local Mirrored = false
+    if HasLayout(Frame) then
+        local Ancestor = Frame.Parent
+        while Ancestor do
+            if Ancestor:IsA("ScreenGui") then
+                Host = Ancestor
+                Mirrored = true
+                break
+            end
+            if Ancestor:IsA("GuiObject") and not HasLayout(Ancestor) then
+                Host = Ancestor
+                Mirrored = true
+                break
+            end
+            Ancestor = Ancestor.Parent
+        end
+    end
+
     local Shadow = New("Frame", {
         Name = "Shadow",
         AnchorPoint = Vector2.zero,
@@ -2776,8 +2807,47 @@ function Library:AddShadow(Frame: GuiObject, Options: { [string]: any }?)
         BackgroundTransparency = Options.Transparency or 0.55,
         ZIndex = Frame.ZIndex - 1,
         BorderSizePixel = 0,
-        Parent = Frame,
+        Parent = Host,
     })
+
+    if Mirrored then
+        local function Sync()
+            if not Frame.Parent then
+                return
+            end
+
+            --// Convert the on-screen delta into the host's local (pre-UIScale)
+            --// coordinate space so the shadow tracks layout reflows. \--
+            local Scale = 1
+            local Current: Instance? = Host
+            while Current and not Current:IsA("ScreenGui") do
+                if Current:IsA("GuiObject") then
+                    local UIS = Current:FindFirstChildOfClass("UIScale")
+                    if UIS then
+                        Scale *= UIS.Scale
+                    end
+                end
+                Current = Current.Parent
+            end
+
+            local HostPos = Host:IsA("GuiObject") and Host.AbsolutePosition or Vector2.zero
+            local Rel = (Frame.AbsolutePosition - HostPos) / Scale
+            Shadow.Position = UDim2.fromOffset(Rel.X - Spread, Rel.Y - Spread * 0.4)
+            Shadow.Size = UDim2.fromOffset(Frame.AbsoluteSize.X + Spread * 2, Frame.AbsoluteSize.Y + Spread * 2 + Drop)
+        end
+
+        local Connections = {
+            Frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(Sync),
+            Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(Sync),
+        }
+        Frame.Destroying:Connect(function()
+            for _, Connection in Connections do
+                Connection:Disconnect()
+            end
+            Shadow:Destroy()
+        end)
+        task.defer(Sync)
+    end
 
     table.insert(
         Library.Corners,
@@ -3611,8 +3681,20 @@ function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, Col
     Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(Update)
     Scroll:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(Update)
     Scroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(Update)
-    Scroll:GetPropertyChangedSignal("Visible"):Connect(Update)
-    Update()
+
+    --// Ancestor visibility matters too: the window itself starts hidden, so the
+    --// scroll's own Visible never changes when the UI first appears. \--
+    local function WatchVisible(Inst: Instance)
+        if not Inst:IsA("GuiObject") then
+            return
+        end
+        Inst:GetPropertyChangedSignal("Visible"):Connect(Update)
+        if Inst.Parent then
+            WatchVisible(Inst.Parent)
+        end
+    end
+    WatchVisible(Scroll)
+    task.defer(Update)
 
     return Top, Bottom
 end
@@ -15993,11 +16075,6 @@ function Library:CreateWindow(WindowInfo)
                 Color = "OutlineColor",
                 Parent = DiscordBtn,
             })
-            New("UIPadding", {
-                PaddingLeft = UDim.new(0, 20),
-                PaddingRight = UDim.new(0, 20),
-                Parent = DiscordBtn,
-            })
             Library:AddShadow(DiscordBtn, {
                 Spread = 8,
                 Drop = 5,
@@ -16005,19 +16082,20 @@ function Library:CreateWindow(WindowInfo)
                 Transparency = 0.65,
             })
 
-            New("UIListLayout", {
-                FillDirection = Enum.FillDirection.Horizontal,
-                HorizontalAlignment = Enum.HorizontalAlignment.Center,
-                VerticalAlignment = Enum.VerticalAlignment.Center,
-                Padding = UDim.new(0, 10),
-                Parent = DiscordBtn,
-            })
+            --// NOTE: no UIListLayout here - it would also arrange the shadow
+            --// frame child and throw the content outside the button. The icon
+            --// and label are positioned manually as a centered group instead. \
+            local DiscordTextWidth = math.ceil(select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200)))
+            local DiscordGroupWidth = 18 + 10 + DiscordTextWidth
+            local DiscordGroupLeft = -DiscordGroupWidth / 2
 
             local DiscordImgLabel = New("ImageLabel", {
+                AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
                 Image = CustomImageManager.GetAsset("DiscordIcon") or "",
                 ImageColor3 = "AccentColor",
                 ImageTransparency = 0.5,
+                Position = UDim2.new(0.5, DiscordGroupLeft, 0.5, 0),
                 ScaleType = Enum.ScaleType.Fit,
                 Size = UDim2.fromOffset(18, 18),
                 Visible = true,
@@ -16025,14 +16103,17 @@ function Library:CreateWindow(WindowInfo)
             })
 
             local DiscordTextLabel = New("TextLabel", {
+                AnchorPoint = Vector2.new(0, 0.5),
                 AutomaticSize = Enum.AutomaticSize.X,
                 BackgroundTransparency = 1,
+                Position = UDim2.new(0.5, DiscordGroupLeft + 28, 0.5, 0),
                 Size = UDim2.new(0, 0, 1, 0),
                 Text = "Discord",
                 TextSize = 16,
                 TextTransparency = 0.5,
                 TextTruncate = Enum.TextTruncate.AtEnd,
-                TextXAlignment = Enum.TextXAlignment.Center,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
                 Visible = true,
                 Parent = DiscordBtn,
             })
@@ -16597,11 +16678,6 @@ function Library:CreateWindow(WindowInfo)
 
         if DiscordBtn then
             --// Compact sidebar is only 48px wide: collapse the button to its icon. \
-            local PillPadding = DiscordBtn:FindFirstChildOfClass("UIPadding")
-            if PillPadding then
-                PillPadding.PaddingLeft = UDim.new(0, IsCompact and 6 or 20)
-                PillPadding.PaddingRight = UDim.new(0, IsCompact and 6 or 20)
-            end
             for _, Child in DiscordBtn:GetDescendants() do
                 if Child:IsA("TextLabel") then
                     Child.Visible = not IsCompact
