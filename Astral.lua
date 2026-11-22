@@ -363,18 +363,24 @@ local Library = {
     IsLightTheme = false,
 
     --// ---- Design tokens -------------------------------------------------------
-    --// One place for every visual constant. The palette is *derived* from the four
+    --// ONE place for every visual constant. The palette is derived from the four
     --// base colors (BackgroundColor / MainColor / AccentColor / OutlineColor) in
     --// Library:SyncDesign(), so themes, color pickers and ThemeManager keep working
-    --// while every surface still follows a single, documented hierarchy:
+    --// while every surface follows a single, documented hierarchy:
     --//
-    --//   BackgroundColor  window backdrop (the base layer)
-    --//   PanelColor       sections, dialogs, dropdowns, popouts (containers)
-    --//   MainColor        controls, inputs, cards (interactive surface)
     --//   AccentColor      primary accent (selection, progress, primary action)
-    --//   AccentColor2     secondary accent (gradient end, soft highlights)
-    --//   AccentSoftColor  accent blended into the panel (active tab / selection)
+    --//   AccentColor2     second accent (gradient end, soft highlights)
+    --//   BackgroundColor  surface layer — window, titlebar, topbar, sidebar,
+    --//                    page and footer ALL share this color AND alpha
+    --//   PanelColor       sections / dialogs / popouts — one step above the
+    --//                    surface with its own alpha so it reads as elevated
+    --//   MainColor        interactive controls (inputs, buttons, cards)
     --//   OutlineColor     borders and separators
+    --//   FontColor        primary text  /  TextMutedColor secondary text
+    --//
+    --// Alpha is expressed as an OFFSET from WindowTransparency (0 = opaque):
+    --//   0             chrome surfaces — one continuous sheet of glass
+    --//   negative      more opaque, used by sections to create depth
     --// --------------------------------------------------------------------------
     Design = {
         Radius = {
@@ -386,6 +392,14 @@ local Library = {
         },
         Spacing = { XS = 4, SM = 8, MD = 12, LG = 16, XL = 24 },
         Border = 1,
+
+        --// Surface alpha offsets. Chrome == window == topbar == sidebar == page.
+        --// Sections use a separate alpha so they stand out from the shared base.
+        Alpha = {
+            Chrome = 0,      -- window / titlebar / topbar / sidebar / page / footer
+            Panel = -0.10,   -- sections, dialogs, popouts (elevated, less see-through)
+            Control = -0.04, -- buttons, inputs, value boxes
+        },
     },
 
     Scheme = {
@@ -559,11 +573,11 @@ local Templates = {
             IndicatorWidth = 3,
             IndicatorHeight = 18,
         },
-        Transparency = 0,
+        Transparency = 0.10, --// subtle glassmorphism by default; chrome shares this alpha
         Gradient = true,
         GradientColor = nil,
         GradientRotation = 45,
-        GradientTransparency = 0.2, --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
+        GradientTransparency = 0.72, --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
         HighlightEdge = true, --// accent-tinted edge highlight stroke around the window
         ToggleKeybind = Enum.KeyCode.RightControl,
 
@@ -1670,11 +1684,10 @@ end
 Library.WindowTransparency = 0
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
-Library.GradientTransparency = 0.2 --// 0 = solid gradient wash, 1 = invisible gradient overlay
+Library.GradientTransparency = 0.72 --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
 Library.HighlightEdgeEnabled = true
-Library.GradientTextureTransparency = 0.8 --// base ImageTransparency of the gradient artwork; fades out with window transparency
-Library.GradientPanelTransparency = 0.1 --// panels are 90% opaque
-Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "panel" | "card"
+Library.GradientTextureTransparency = 0.72 --// base ImageTransparency of Gradient.png
+Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "chrome" | "panel" | "control" | "solid"
 Library.StyleBase = setmetatable({}, { __mode = "k" }) --// Instance -> original BackgroundTransparency
 Library.StylePending = {}
 Library.StyleFlushQueued = false
@@ -1699,6 +1712,36 @@ function Library:GetGradientSequence(): ColorSequence
     })
 end
 
+--// Tint sequence for Gradient.png. The artwork is a neutral black-to-white wave,
+--// so the dark stops stay as the theme background while the bright stops become
+--// the second accent — a gradient that actually belongs to the palette.
+function Library:GetGradientTintSequence(): ColorSequence
+    local Scheme = Library.Scheme
+    local Bg = Scheme.BackgroundColor
+    local Accent = Scheme.AccentColor
+    local Accent2 = Scheme.AccentColor2 or Accent
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Bg),
+        ColorSequenceKeypoint.new(0.5, Bg:Lerp(Accent, 0.35)),
+        ColorSequenceKeypoint.new(1, Accent2:Lerp(Color3.new(1, 1, 1), 0.25)),
+    })
+end
+
+--// Resolves a surface's transparency from its ROLE. The window, titlebar, topbar,
+--// sidebar, page and footer all ask for "chrome" and therefore always match.
+--// Sections ask for "panel" and get a different alpha to lift them off the base.
+function Library:GetSurfaceAlpha(Role: string?): number
+    local Offset = Library.Design.Alpha[Role or "chrome"]
+    if Role == "main" then
+        Offset = Library.Design.Alpha.Chrome
+    elseif Role == "card" then
+        Offset = Library.Design.Alpha.Control
+    end
+    if Offset == nil then
+        Offset = 0
+    end
+    return math.clamp(Library.WindowTransparency + Offset, 0, 0.95)
+end
 
 --// Frames whose descendants follow the window style: the main window plus every overlay
 --// (draggable menus and labels, notifications, context menus, popped-out sections). \\--
@@ -1756,7 +1799,7 @@ end
 local function ApplyRootStyle(Frame: GuiObject, Base: number)
     local Gradient = Library.StyleGradients[Frame]
     
-    local Transparency = math.clamp(Library.WindowTransparency * 0.3, 0, 0.25)
+    local Transparency = math.clamp(Library:GetSurfaceAlpha("chrome") * 0.3, 0, 0.35)
 
     local Fill = Library.RootFill[Frame] or "BackgroundColor"
     if Library.Registry[Frame] then
@@ -1808,35 +1851,34 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
         return
     end
 
-    local Transparency = Library.WindowTransparency
-    local Gradients = Library.GradientsEnabled
-
     if Mode == "solid" then
         Inst.BackgroundTransparency = 0
     elseif Mode == "root" then
         ApplyRootStyle(Inst, Base)
-    elseif Mode == "main" then
-        --// The window's own fill is painted by the gradient overlay when gradients are on.
-        --// When Transparency is 0 the window stays opaque; the gradient overlay adds tint.
-        Inst.BackgroundTransparency = Gradients and math.max(Transparency, 0.02) or Transparency
-    elseif Mode == "panel" then
-        local Show = Gradients and (1 - Library.GradientPanelTransparency) or 1
-        Inst.BackgroundTransparency = 1 - (1 - Base) * Show * (1 - Transparency)
     else
-        local Show = Gradients and (1 - Library.GradientCardTransparency) or 1
-        Inst.BackgroundTransparency = 1 - (1 - Base) * Show * (1 - Transparency)
+        --// ONE alpha per role, no per-frame tweaking: chrome surfaces (window,
+        --// titlebar, topbar, sidebar, page, footer) resolve to the exact same
+        --// transparency, while sections use their own token to add depth.
+        Inst.BackgroundTransparency = Library:GetSurfaceAlpha(Mode)
     end
 end
 
 function Library:UpdateWindowStyle()
     local Overlay = Library.GradientOverlay
-    if Overlay and Overlay.Parent and Library.GradientObject then
+    if Overlay and Overlay.Parent then
         Overlay.Visible = Library.GradientsEnabled
-        Library.GradientObject.Color = Library:GetGradientSequence()
-        Library.GradientObject.Rotation = Library.GradientRotation
-        Library.GradientObject.Transparency = NumberSequence.new(
-            1 - (1 - Library.WindowTransparency) * (1 - (Library.GradientTransparency or 0))
+        --// Gradient.png is a neutral black-to-white wave. Tinting it through the
+        --// theme-derived UIGradient makes it belong to the palette instead of
+        --// reading as a pasted-on neon wash.
+        Overlay.ImageTransparency = math.clamp(
+            Library.GradientTextureTransparency + Library.WindowTransparency * 0.25,
+            0, 1
         )
+        if Library.GradientObject then
+            Library.GradientObject.Color = Library:GetGradientTintSequence()
+            Library.GradientObject.Rotation = Library.GradientRotation
+            Library.GradientObject.Transparency = NumberSequence.new(0)
+        end
     end
 
     --// Overlay roots (menus, dialogs, popouts) get the same restrained sheen so
@@ -1941,6 +1983,7 @@ function Library:SetGradientTransparency(Value: number)
     assert(typeof(Value) == "number", "Expected number for transparency got: " .. typeof(Value))
 
     Library.GradientTransparency = math.clamp(Value, 0, 1)
+    Library.GradientTextureTransparency = Library.GradientTransparency
     Library:UpdateWindowStyle()
 end
 
@@ -2726,11 +2769,50 @@ function Library:AddEdgeFill(Frame: GuiObject, Edge: string, ColorIndex: string?
     return Fill
 end
 
+--// Builds a panel whose TOP half is rounded on the top edge only and whose
+--// BODY is rounded on the bottom edge only. Two single-edge fills replace one
+--// all-corner UICorner, so sections meet their content on a clean square seam
+--// instead of showing stacked rounded rectangles (the classic corner seam bug).
+function Library:MakeSplitEdgePanel(Frame: GuiObject, Split: number, Radius: number, ColorIndex: string, Mode: string?)
+    Frame.BackgroundTransparency = 1
+    Frame.ClipsDescendants = true
+
+    local TopCap = New("Frame", {
+        Name = "TopEdge",
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Size = UDim2.new(1, 0, 0, Split),
+        ZIndex = Frame.ZIndex,
+        Parent = Frame,
+    })
+    local TopFill = Library:AddEdgeFill(TopCap, "top", ColorIndex, Radius, Mode)
+    TopFill.Size = UDim2.new(1, 0, 1, Radius)
+    New("UIStroke", { Color = "OutlineColor", Parent = TopFill })
+
+    local BottomCap = New("Frame", {
+        Name = "BottomEdge",
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Position = UDim2.fromOffset(0, Split),
+        Size = UDim2.new(1, 0, 1, -Split),
+        ZIndex = Frame.ZIndex,
+        Parent = Frame,
+    })
+    local BottomFill = Library:AddEdgeFill(BottomCap, "bottom", ColorIndex, Radius, Mode)
+    New("UIStroke", { Color = "OutlineColor", Parent = BottomFill })
+
+    return TopFill, BottomFill
+end
+
 --// Soft edge fade for scrolling surfaces: a thin frame painted in the surface's
 --// own color whose UIGradient Transparency runs from opaque at the edge to fully
 --// transparent inward, so scrolled content dissolves instead of hard-clipping.
 --// Parent must be a non-scrolling host (siblings of the ScrollingFrame), and the
 --// fade's ZIndex should sit one step above the scroll content. \--
+--// Fade frames keep their gradient + animation state here. The frame is always
+--// full-width so the fade reaches the right edge of the UI it belongs to.
+Library.EdgeFadeData = setmetatable({}, { __mode = "k" })
+
 function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?, Inset: number?): GuiObject
     local Fade = New("Frame", {
         AnchorPoint = Edge == "top" and Vector2.zero or Vector2.new(0, 1),
@@ -2743,7 +2825,7 @@ function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number,
         Parent = Parent,
     })
 
-    New("UIGradient", {
+    local Gradient = New("UIGradient", {
         Rotation = 90,
         Transparency = NumberSequence.new({
             NumberSequenceKeypoint.new(0, Edge == "top" and 0 or 1),
@@ -2752,7 +2834,97 @@ function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number,
         Parent = Fade,
     })
 
+    Library.EdgeFadeData[Fade] = {
+        Gradient = Gradient,
+        Edge = Edge,
+        Amount = 1,
+        Shown = true,
+    }
+
     return Fade
+end
+
+--// Fades the edge gradient in/out instead of snapping Visible on/off. Driven by
+--// a NumberValue proxy so TweenService can interpolate the NumberSequence.
+function Library:SetEdgeFadeVisible(Fade: GuiObject, Visible: boolean, Animate: boolean?)
+    local Data = Library.EdgeFadeData[Fade]
+    if not Data then
+        Fade.Visible = Visible
+        return
+    end
+    if Data.Shown == Visible then
+        return
+    end
+    Data.Shown = Visible
+    Data.Token = (Data.Token or 0) + 1
+    local Token = Data.Token
+
+    if Data.Connection then
+        Data.Connection:Disconnect()
+        Data.Connection = nil
+    end
+    if Data.Tween then
+        Data.Tween:Cancel()
+        Data.Tween = nil
+    end
+
+    local function Apply(Amount: number)
+        Data.Amount = Amount
+        if not Data.Gradient.Parent then
+            return
+        end
+        if Data.Edge == "top" then
+            Data.Gradient.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1 - Amount),
+                NumberSequenceKeypoint.new(1, 1),
+            })
+        else
+            Data.Gradient.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(1, 1 - Amount),
+            })
+        end
+    end
+
+    if Animate ~= true then
+        if Visible then
+            Fade.Visible = true
+            Apply(1)
+        else
+            Apply(0)
+            Fade.Visible = false
+        end
+        return
+    end
+
+    --// Keep the frame rendered while the amount animates in either direction.
+    Fade.Visible = true
+
+    local Proxy = Instance.new("NumberValue")
+    Proxy.Value = Data.Amount
+    Data.Connection = Proxy:GetPropertyChangedSignal("Value"):Connect(function()
+        Apply(Proxy.Value)
+    end)
+    Data.Tween = TweenService:Create(Proxy, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Value = Visible and 1 or 0,
+    })
+    Data.Tween:Play()
+
+    task.delay(0.22, function()
+        if Token ~= Data.Token then
+            Proxy:Destroy()
+            return
+        end
+        if Data.Connection then
+            Data.Connection:Disconnect()
+            Data.Connection = nil
+        end
+        Data.Tween = nil
+        if not Visible and Data.Shown == false and Fade.Parent then
+            Fade.Visible = false
+        end
+        Proxy:Destroy()
+    end)
 end
 
 --// Soft drop shadow drawn behind a surface. The shadow is a child with a ZIndex
@@ -3674,8 +3846,8 @@ function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, Col
 
     local function Update()
         if not ScrollbarAncestorsVisible(Scroll) then
-            Top.Visible = false
-            Bottom.Visible = false
+            Library:SetEdgeFadeVisible(Top, false, true)
+            Library:SetEdgeFadeVisible(Bottom, false, true)
             return
         end
 
@@ -3684,8 +3856,10 @@ function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, Col
         local Pos = Scroll.CanvasPosition.Y
         local Overflow = Canvas > View + 1
 
-        Top.Visible = Overflow and Pos > 1
-        Bottom.Visible = Overflow and (Pos + View) < Canvas - 1
+        --// Animated so reaching the top/bottom of the canvas fades smoothly
+        --// instead of popping a hard gradient edge into view.
+        Library:SetEdgeFadeVisible(Top, Overflow and Pos > 1, true)
+        Library:SetEdgeFadeVisible(Bottom, Overflow and (Pos + View) < Canvas - 1, true)
     end
 
     Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(Update)
@@ -8888,6 +9062,8 @@ do
         local Box = New("TextBox", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundColor3 = "MainColor",
+            --// Same as the slider value box: bare text until it is clicked.
+            BackgroundTransparency = 1,
             ClearTextOnFocus = not Input.Disabled and Input.ClearTextOnFocus,
             PlaceholderText = Input.Placeholder,
             Position = UDim2.fromScale(0, 1),
@@ -8907,12 +9083,25 @@ do
             Parent = Box,
         })
 
-        New("UIStroke", {
-            Color = "OutlineColor",
+        local BoxStroke = New("UIStroke", {
+            Color = "AccentColor",
+            Transparency = 1,
+            Thickness = 2,
             Parent = Box,
         })
 
-        Library:AddFocusHighlight(Box)
+        Box.Focused:Connect(function()
+            if Input.Disabled then
+                Box:ReleaseFocus()
+                return
+            end
+            TweenService:Create(Box, Library.TweenInfo, { BackgroundTransparency = 0.55 }):Play()
+            TweenService:Create(BoxStroke, Library.TweenInfo, { Transparency = 0 }):Play()
+        end)
+        Box.FocusLost:Connect(function()
+            TweenService:Create(Box, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
+            TweenService:Create(BoxStroke, Library.TweenInfo, { Transparency = 1 }):Play()
+        end)
 
         table.insert(
             Library.Corners,
@@ -9161,9 +9350,12 @@ do
             })
 
             if Slider.Editable and Slider.EditableStyle == "ValueBox" then
+                --// By default the value is just text: no box, no outline. The
+                --// background and accent ring only appear while it is focused.
                 InlineValueBox = New("TextBox", {
                     AnchorPoint = Vector2.new(1, 0.5),
                     BackgroundColor3 = "MainColor",
+                    BackgroundTransparency = 1,
                     ClearTextOnFocus = true,
 
                     Position = UDim2.new(1, 0, 0, TopRowHeight / 2),
@@ -9173,8 +9365,10 @@ do
                     TextEditable = not Slider.Disabled,
                     Parent = Holder,
                 })
-                New("UIStroke", {
-                    Color = "OutlineColor",
+                local InlineValueBoxStroke = New("UIStroke", {
+                    Color = "AccentColor",
+                    Transparency = 1,
+                    Thickness = 2,
                     Parent = InlineValueBox,
                 })
                 table.insert(
@@ -9185,7 +9379,27 @@ do
                     })
                 )
                 Library:AddToRegistry(InlineValueBox, { BackgroundColor3 = "MainColor" })
-                Library:AddFocusHighlight(InlineValueBox)
+
+                InlineValueBox.Focused:Connect(function()
+                    if Slider.Disabled then
+                        InlineValueBox:ReleaseFocus()
+                        return
+                    end
+                    TweenService:Create(InlineValueBox, Library.TweenInfo, {
+                        BackgroundTransparency = 0.55,
+                    }):Play()
+                    TweenService:Create(InlineValueBoxStroke, Library.TweenInfo, {
+                        Transparency = 0,
+                    }):Play()
+                end)
+                InlineValueBox.FocusLost:Connect(function()
+                    TweenService:Create(InlineValueBox, Library.TweenInfo, {
+                        BackgroundTransparency = 1,
+                    }):Play()
+                    TweenService:Create(InlineValueBoxStroke, Library.TweenInfo, {
+                        Transparency = 1,
+                    }):Play()
+                end)
             end
         end
 
@@ -10226,8 +10440,9 @@ do
             })
         )
         local ValueLabelStroke = New("UIStroke", {
-            Color = "OutlineColor",
+            Color = "AccentColor",
             Transparency = 1,
+            Thickness = 2,
             Parent = ValueLabel,
         })
 
@@ -10237,13 +10452,23 @@ do
                 return
             end
             ValueLabel.Text = tostring(Stepper.Value)
-            ValueLabel.BackgroundTransparency = 0.7
-            ValueLabelStroke.Transparency = 0.3
+            --// Same interaction language as the slider value box: reveal the
+            --// surface and highlight it with the accent ring on focus.
+            TweenService:Create(ValueLabel, Library.TweenInfo, {
+                BackgroundTransparency = 0.55,
+            }):Play()
+            TweenService:Create(ValueLabelStroke, Library.TweenInfo, {
+                Transparency = 0,
+            }):Play()
         end)
 
         ValueLabel.FocusLost:Connect(function(Enter)
-            ValueLabel.BackgroundTransparency = 1
-            ValueLabelStroke.Transparency = 1
+            TweenService:Create(ValueLabel, Library.TweenInfo, {
+                BackgroundTransparency = 1,
+            }):Play()
+            TweenService:Create(ValueLabelStroke, Library.TweenInfo, {
+                Transparency = 1,
+            }):Play()
             if Stepper.Disabled then
                 Stepper:Display()
                 return
@@ -11245,12 +11470,15 @@ do
                     TextOffset += 24
                 end
 
-                --// Up / down segmented group on the right. \\--
+                --// Up / down segmented group on the right. Larger touch targets
+                --// with a hover fill so each arrow reads as its own button. \\--
+                local GroupHeight = math.clamp(PriorityList.RowHeight - 8, 22, 32)
+                local GroupWidth = GroupHeight * 2 + 4
                 local Group = New("Frame", {
                     AnchorPoint = Vector2.new(1, 0.5),
                     BackgroundColor3 = "BackgroundColor",
                     Position = UDim2.new(1, -6, 0.5, 0),
-                    Size = UDim2.fromOffset(44, 20),
+                    Size = UDim2.fromOffset(GroupWidth, GroupHeight),
                     Parent = Row,
                 })
                 table.insert(
@@ -11267,7 +11495,7 @@ do
                 Library:MakeLine(Group, {
                     AnchorPoint = Vector2.new(0.5, 0.5),
                     Position = UDim2.fromScale(0.5, 0.5),
-                    Size = UDim2.fromOffset(1, 10),
+                    Size = UDim2.fromOffset(1, GroupHeight - 10),
                 })
 
                 local function MakeMove(IconName: string, Side: number, Direction: number)
@@ -11278,6 +11506,7 @@ do
 
                     local Button = New("TextButton", {
                         Active = CanMove,
+                        BackgroundColor3 = "AccentColor",
                         BackgroundTransparency = 1,
                         Position = UDim2.fromScale(Side * 0.5, 0),
                         Size = UDim2.fromScale(0.5, 1),
@@ -11290,17 +11519,25 @@ do
                         ImageColor3 = "FontColor",
                         ImageTransparency = CanMove and 0.35 or 0.8,
                         Position = UDim2.fromScale(0.5, 0.5),
-                        Size = UDim2.fromOffset(11, 11),
+                        Size = UDim2.fromOffset(math.min(GroupHeight - 8, 16), math.min(GroupHeight - 8, 16)),
                         Parent = Button,
                     })
                     Library:ApplyIcon(Icon, IconName)
 
                     if CanMove then
                         Button.MouseEnter:Connect(function()
+                            TweenService:Create(Button, Library.TweenInfo, { BackgroundTransparency = 0.8 }):Play()
                             TweenService:Create(Icon, Library.TweenInfo, { ImageTransparency = 0 }):Play()
                         end)
                         Button.MouseLeave:Connect(function()
+                            TweenService:Create(Button, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
                             TweenService:Create(Icon, Library.TweenInfo, { ImageTransparency = 0.35 }):Play()
+                        end)
+                        Button.MouseButton1Down:Connect(function()
+                            TweenService:Create(Button, Library.TweenInfo, { BackgroundTransparency = 0.6 }):Play()
+                        end)
+                        Button.MouseButton1Up:Connect(function()
+                            TweenService:Create(Button, Library.TweenInfo, { BackgroundTransparency = 0.8 }):Play()
                         end)
                         Button.MouseButton1Click:Connect(function()
                             PriorityList:Move(Index, Index + Direction)
@@ -11310,7 +11547,7 @@ do
                 MakeMove("chevron-up", 0, -1)
                 MakeMove("chevron-down", 1, 1)
 
-                local RightReserve = 58
+                local RightReserve = GroupWidth + 14
                 if PriorityList.ShowValue and Item.Value ~= "" then
                     local ValueLabel = New("TextLabel", {
                         AnchorPoint = Vector2.new(1, 0.5),
@@ -14299,20 +14536,20 @@ do
 
         do
             SubSectionHolder = New("Frame", {
-                BackgroundColor3 = "MainColor",
-                BackgroundTransparency = 0.3,
+                BackgroundTransparency = 1,
                 Size = UDim2.new(1, 0, 0, 0),
                 LayoutOrder = SubSectionOrder or 0,
                 Parent = SubSectionParent,
             })
-            table.insert(
-                Library.Corners,
-                New("UICorner", {
-                    CornerRadius = UDim.new(0, 4),
-                    Parent = SubSectionHolder,
-                })
+            --// Same single-edge construction as sections: rounded header on top,
+            --// rounded body on the bottom, square seam where they meet. \\--
+            Library:MakeSplitEdgePanel(
+                SubSectionHolder,
+                28,
+                Library:GetRadius("panel"),
+                "MainColor",
+                "control"
             )
-            Library:AddOutline(SubSectionHolder)
 
             SubSectionSeparatorLine = Library:MakeLine(SubSectionHolder, {
                 Position = UDim2.fromOffset(0, 28),
@@ -15089,7 +15326,8 @@ function Library:CreateWindow(WindowInfo)
     Library.WindowTransparency = math.clamp(tonumber(WindowInfo.Transparency) or 0, 0, 0.85)
     Library.GradientsEnabled = WindowInfo.Gradient ~= false
     Library.GradientRotation = tonumber(WindowInfo.GradientRotation) or 45
-    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.2, 0, 1)
+    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.72, 0, 1)
+    Library.GradientTextureTransparency = Library.GradientTransparency
     Library.HighlightEdgeEnabled = WindowInfo.HighlightEdge ~= false
     if typeof(WindowInfo.GradientColor) == "Color3" then
         Library.Scheme.GradientColor = WindowInfo.GradientColor
@@ -15138,6 +15376,17 @@ function Library:CreateWindow(WindowInfo)
     local IsCompact = WindowInfo.SidebarCompacted
     local CompactTooltips = WindowInfo.CompactSidebarTooltips ~= false
     local LastExpandedWidth = InitialLeftWidth
+
+    --// Sidebar layout constants. Tabs and the Discord pill are padded SEPARATELY:
+    --// the Discord button needs a little more room than the tab icons so the
+    --// compact tab icons don't look cramped by comparison. \--
+    local SidebarTopInset = 48
+    local SidebarTabInset = 8
+    local SidebarDiscordSpacing = 6
+    local SidebarDiscordInset = 28 --// 20px footer strip + 8px gap
+    local ExpandedDiscordPadding = 10
+    local CompactDiscordPadding = 5
+    local CompactTabPadding = 2
 
     --// Sizes the title + subtitle stack to fit the sidebar header. Called on
     --// creation, when either text/size changes and when the sidebar resizes. \\--
@@ -15355,9 +15604,9 @@ function Library:CreateWindow(WindowInfo)
         end)
 
         MainFrame = New("TextButton", {
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
-            end,
+            --// Shared chrome color. The gradient overlay tints it; no separate
+            --// "darker window" shade so it matches the titlebar/topbar/page.
+            BackgroundColor3 = "BackgroundColor",
             Name = "Main",
             Text = "",
             Position = WindowInfo.Position,
@@ -15384,12 +15633,17 @@ function Library:CreateWindow(WindowInfo)
         MainWindowScale = MainFrame:FindFirstChildOfClass("UIScale")
         Library.MainFrame = MainFrame
 
-        --// Gradient overlay: sits right above the window background and below all content. \\--
-        Library.GradientOverlay = New("Frame", {
-            BackgroundColor3 = Color3.new(1, 1, 1),
+        --// Gradient overlay: the theme's Gradient.png artwork, tinted by a
+        --// ColorSequence derived from the palette. It spans the whole window and
+        --// sits just above the shared chrome fill, below every content surface.
+        Library.GradientOverlay = New("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = CustomImageManager.GetAsset("GradientBackground") or "",
             Name = "GradientOverlay",
+            ScaleType = Enum.ScaleType.Stretch,
             Size = UDim2.fromScale(1, 1),
             Visible = Library.GradientsEnabled,
+            ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
         table.insert(
@@ -15399,13 +15653,25 @@ function Library:CreateWindow(WindowInfo)
                 Parent = Library.GradientOverlay,
             })
         )
+        --// Tints the neutral artwork with the current theme (accent + background).
         Library.GradientObject = New("UIGradient", {
             Parent = Library.GradientOverlay,
         })
 
-        --// The backdrop is painted by a single theme-derived gradient (see
-        --// Library:GetGradientSequence). There is no bitmap layer stacked on top:
-        --// that is what made older builds look patchy and off-palette.
+        --// The custom asset is fetched from disk asynchronously; swap the fallback
+        --// rbxassetid for the downloaded Gradient.png as soon as it is ready.
+        task.spawn(function()
+            for _ = 1, 60 do
+                task.wait(0.5)
+                local Resolved = CustomImageManager.GetAsset("GradientBackground")
+                if Resolved and Resolved:sub(1, 13) ~= "rbxassetid://" then
+                    if Library.GradientOverlay and Library.GradientOverlay.Parent then
+                        Library.GradientOverlay.Image = Resolved
+                    end
+                    break
+                end
+            end
+        end)
         Library.StyleTargets[MainFrame] = "main"
         Library.StyleRoots[MainFrame] = true
         Library.MainWindowScale = MainWindowScale
@@ -15528,20 +15794,20 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        local TopBackground = Library:AddEdgeFill(TopCap, "top", "PanelColor", WindowInfo.CornerRadius, "panel")
+        local TopBackground = Library:AddEdgeFill(TopCap, "top", "BackgroundColor", WindowInfo.CornerRadius, "chrome")
         TopBackground.Name = "TopBackground"
         TopBackground.Size = UDim2.new(1, 0, 1, WindowInfo.CornerRadius)
 
         local TopFlatBottom = New("Frame", {
             Name = "TopFlatBottom",
-            BackgroundColor3 = "PanelColor",
+            BackgroundColor3 = "BackgroundColor",
             BorderSizePixel = 0,
             Position = UDim2.fromOffset(0, WindowInfo.CornerRadius),
             Size = UDim2.new(1, 0, 0, 48 - WindowInfo.CornerRadius),
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        Library.StyleTargets[TopFlatBottom] = "panel"
+        Library.StyleTargets[TopFlatBottom] = "chrome"
 
         Library.LayoutTopBar = function(Radius: number)
             TopCap.Size = UDim2.new(1, 0, 0, Radius)
@@ -15880,7 +16146,7 @@ function Library:CreateWindow(WindowInfo)
 
         --// Footer fill is rounded on the bottom edge only; the straight top edge
         --// meets the content area cleanly.
-        local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "PanelColor", WindowInfo.CornerRadius, "panel")
+        local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "BackgroundColor", WindowInfo.CornerRadius, "chrome")
         BottomFill.Name = "BottomFill"
 
         BottomBar = New("Frame", {
@@ -15960,45 +16226,30 @@ function Library:CreateWindow(WindowInfo)
         })
         Library:RegisterIconInstance(ResizeImage, "move-diagonal-2")
 
+        --// All chrome surfaces share one color AND alpha. The outer rounded
+        --// corners come from the clipping window, so the sidebar has no UICorner
+        --// of its own — that was the source of the rounded-corner seams.
         Sidebar = New("Frame", {
-            BackgroundColor3 = "PanelColor",
+            BackgroundColor3 = "BackgroundColor",
             Position = UDim2.fromOffset(0, 0),
             Size = UDim2.new(0, InitialLeftWidth, 1, 0),
             Parent = MainFrame,
         })
-        Library.StyleTargets[Sidebar] = "panel"
-        table.insert(
-            Library.Corners,
-            New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = Sidebar,
-            })
-        )
-        --// Top corners of the sidebar are covered by the same-colored top strip,
-        --// bottom corners by the footer fill, so rounding all four is seamless. \
-        New("UIPadding", {
-            PaddingTop = UDim.new(0, 52), --// clears the 48px top bar
-            PaddingBottom = UDim.new(0, 4),
-            Parent = Sidebar,
-        })
-        New("UIListLayout", {
-            FillDirection = Enum.FillDirection.Vertical,
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
-            Padding = UDim.new(0, 6),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Parent = Sidebar,
-        })
+        Library.StyleTargets[Sidebar] = "chrome"
 
         DiscordBtnHeight = (WindowInfo.DiscordLink and typeof(WindowInfo.DiscordLink) == "string") and 36 or 0
 
-        --// Non-scrolling viewport around the tab list so edge fades can overlay
-        --// the scroll without scrolling away. Its height leaves room for the top
-        --// padding, bottom padding and the Discord slot when one exists. \
+        --// The tab list and the Discord pill are positioned independently so
+        --// each can keep its own padding (compact tabs need less than Discord).
+        local DiscordReserve = DiscordBtnHeight > 0
+            and (DiscordBtnHeight + SidebarDiscordSpacing + SidebarDiscordInset)
+            or SidebarDiscordInset
+
         local TabsViewport = New("Frame", {
             BackgroundTransparency = 1,
-            LayoutOrder = 1,
             Name = "TabsViewport",
-            Size = UDim2.new(1, 0, 1, -(56 + (DiscordBtnHeight > 0 and DiscordBtnHeight + 6 or 0))),
+            Position = UDim2.fromOffset(0, SidebarTopInset),
+            Size = UDim2.new(1, 0, 1, -(SidebarTopInset + DiscordReserve)),
             Parent = Sidebar,
         })
 
@@ -16029,7 +16280,7 @@ function Library:CreateWindow(WindowInfo)
         --// Edge fades dissolve scrolled tabs into the sidebar surface. The bottom
         --// fade is taller so content melts away before it reaches the Discord pill. \
         local TabsFadeZ = Tabs.ZIndex + 1
-        Library:AddScrollEdgeFades(TabsViewport, Tabs, "PanelColor", TabsFadeZ)
+        Library:AddScrollEdgeFades(TabsViewport, Tabs, "BackgroundColor", TabsFadeZ)
 
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
@@ -16064,17 +16315,19 @@ function Library:CreateWindow(WindowInfo)
                 end
             end
 
-            --// Discord button: full-width row docked at the bottom of the sidebar
-            --// (8px side padding via the -16 width + centered list alignment). \
+            --// Discord pill anchored to the very bottom of the sidebar, above
+            --// the footer strip. Its padding is independent from the tab list.
             DiscordBtn = New("TextButton", {
+                AnchorPoint = Vector2.new(0.5, 1),
                 BackgroundColor3 = "PanelColor",
                 BorderSizePixel = 0,
-                LayoutOrder = 2,
-                Size = UDim2.new(1, -16, 0, 36),
+                Position = UDim2.new(0.5, 0, 1, -SidebarDiscordInset),
+                Size = UDim2.new(1, -ExpandedDiscordPadding * 2, 0, DiscordBtnHeight),
                 Text = "",
                 ZIndex = Tabs.ZIndex + 2,
                 Parent = Sidebar,
             })
+            Library.StyleTargets[DiscordBtn] = "control"
             table.insert(
                 Library.Corners,
                 New("UICorner", {
@@ -16086,12 +16339,8 @@ function Library:CreateWindow(WindowInfo)
                 Color = "OutlineColor",
                 Parent = DiscordBtn,
             })
-            Library:AddShadow(DiscordBtn, {
-                Spread = 8,
-                Drop = 5,
-                Radius = 18,
-                Transparency = 0.65,
-            })
+            --// No drop shadow: the dark mirrored frame behind the pill read as a
+            --// black rectangle below the Discord button.
 
             --// NOTE: no UIListLayout here - it would also arrange the shadow
             --// frame child and throw the content outside the button. The icon
@@ -16201,14 +16450,16 @@ function Library:CreateWindow(WindowInfo)
 
         Container = New("Frame", {
             AnchorPoint = Vector2.new(1, 0),
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
-            end,
+            --// Same color as the window/topbar/sidebar: the page is part of the
+            --// same glass sheet, not a separate tinted panel.
+            BackgroundColor3 = "BackgroundColor",
             Name = "Container",
-            Position = UDim2.new(1, 0, 0, 49),
-            Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -70),
+            --// Start flush with the 48px topbar — no 1px gap underneath it.
+            Position = UDim2.new(1, 0, 0, 48),
+            Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -69),
             Parent = MainFrame,
         })
+        Library.StyleTargets[Container] = "chrome"
         New("UIPadding", {
             PaddingBottom = UDim.new(0, 0),
             PaddingLeft = UDim.new(0, 6),
@@ -16604,6 +16855,14 @@ function Library:CreateWindow(WindowInfo)
     local function ApplyCompact()
         IsCompact = Window:GetSidebarWidth() <= CompactWidth
 
+        --// The tab list has its own (tighter) horizontal padding in compact
+        --// mode; the Discord pill below keeps a larger, independent padding.
+        local TabsPadding = Tabs and Tabs:FindFirstChildOfClass("UIPadding")
+        if TabsPadding then
+            TabsPadding.PaddingLeft = UDim.new(0, IsCompact and SidebarTabInset or (12 + Library.TabButtonsStyle.Padding))
+            TabsPadding.PaddingRight = UDim.new(0, IsCompact and SidebarTabInset or (10 + Library.TabButtonsStyle.Padding))
+        end
+
         TitleTextHolder.Visible = not IsCompact
         if not WindowInfo.Icon then
             WindowIcon.Visible = IsCompact
@@ -16618,8 +16877,10 @@ function Library:CreateWindow(WindowInfo)
                 Button.IconSlot.Position = UDim2.fromScale(0.5, 0.5)
                 Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
-                Button.Padding.PaddingLeft = UDim.new(0, 0)
-                Button.Padding.PaddingRight = UDim.new(0, 0)
+                --// Compact tabs use their own (tighter) padding; the Discord
+                --// pill below uses a larger one so it doesn't look squashed.
+                Button.Padding.PaddingLeft = UDim.new(0, CompactTabPadding)
+                Button.Padding.PaddingRight = UDim.new(0, CompactTabPadding)
             else
                 Button.IconSlot.AnchorPoint = Vector2.new(0, 0.5)
                 Button.IconSlot.Position = UDim2.new(0, 0, 0.5, 0)
@@ -16688,6 +16949,10 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if DiscordBtn then
+            --// Discord keeps its OWN padding, separate from the tab list.
+            local DiscordPadding = IsCompact and CompactDiscordPadding or ExpandedDiscordPadding
+            DiscordBtn.Size = UDim2.new(1, -DiscordPadding * 2, 0, DiscordBtnHeight)
+
             --// Compact sidebar is only 48px wide: collapse the button to its icon. \
             for _, Child in DiscordBtn:GetDescendants() do
                 if Child:IsA("TextLabel") then
@@ -17547,24 +17812,20 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionHolder = New("Frame", {
-                    BackgroundColor3 = "PanelColor",
+                    BackgroundTransparency = 1,
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
-                table.insert(
-                    Library.Corners,
-                    New("UICorner", {
-                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
-                        Parent = SectionHolder,
-                    })
+                --// Sections are the only surfaces with their own alpha: a single
+                --// panel token for the fill, split into a top-rounded header and
+                --// a bottom-rounded body so no double-rounded seam shows through.
+                Library:MakeSplitEdgePanel(
+                    SectionHolder,
+                    HeaderHeight,
+                    Library:GetRadius("panel"),
+                    "PanelColor",
+                    "panel"
                 )
-                Library:AddOutline(SectionHolder)
-                Library:AddShadow(SectionHolder, {
-                    Spread = 10,
-                    Drop = 6,
-                    Radius = Library:GetRadius("panel"),
-                    Transparency = 0.62,
-                })
 
                 SectionSeparatorLine = Library:MakeLine(SectionHolder, {
                     Position = UDim2.fromOffset(0, HeaderHeight),
@@ -18108,25 +18369,28 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionGroupHolder = New("Frame", {
-                    BackgroundColor3 = "PanelColor",
+                    BackgroundTransparency = 1,
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
-                table.insert(
-                    Library.Corners,
-                    New("UICorner", {
-                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
-                        Parent = SectionGroupHolder,
-                    })
+                local GroupTopFill, GroupBottomFill = Library:MakeSplitEdgePanel(
+                    SectionGroupHolder, BarHeight, Library:GetRadius("panel"), "PanelColor", "panel"
                 )
-                local OutlineStroke = Library:AddOutline(SectionGroupHolder)
+                local GroupStrokes = {
+                    GroupTopFill:FindFirstChildOfClass("UIStroke"),
+                    GroupBottomFill:FindFirstChildOfClass("UIStroke"),
+                }
 
                 --// Accent border (set AccentBorder = false for the plain outline). \\--
                 if Info.AccentBorder == true then
-                    Library.Registry[OutlineStroke].Color = nil
-                    OutlineStroke.Color = Color3.new(1, 1, 1)
-                    OutlineStroke.Transparency = 0.35
-                    Library:ApplyAccentGradient(OutlineStroke, 45)
+                    for _, OutlineStroke in GroupStrokes do
+                        if OutlineStroke then
+                            Library.Registry[OutlineStroke].Color = nil
+                            OutlineStroke.Color = Color3.new(1, 1, 1)
+                            OutlineStroke.Transparency = 0.35
+                            Library:ApplyAccentGradient(OutlineStroke, 45)
+                        end
+                    end
                 end
 
                 --// Segmented tab bar: a rounded track with the active tab as an accent pill. \\--
