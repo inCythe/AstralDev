@@ -574,11 +574,11 @@ local Templates = {
             IndicatorWidth = 3,
             IndicatorHeight = 18,
         },
-        Transparency = 0.10, --// subtle glassmorphism by default; chrome shares this alpha
+        Transparency = 0.20, --// background transparency default (20/85)
         Gradient = true,
         GradientColor = nil,
         GradientRotation = 45,
-        GradientTransparency = 0.78, --// default ImageTransparency of the gradient layer (0 solid, 1 invisible)
+        GradientTransparency = 0.70, --// gradient layer default (70/100)
         HighlightEdge = true, --// accent-tinted edge highlight stroke around the window
         ToggleKeybind = Enum.KeyCode.RightControl,
 
@@ -1682,12 +1682,12 @@ function Library:UpdatePoppedSections()
 end
 
 --// Window style: transparency + gradient. \\--
-Library.WindowTransparency = 0
+Library.WindowTransparency = 0.20
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
-Library.GradientTransparency = 0.78 --// default ImageTransparency of the gradient layer
+Library.GradientTransparency = 0.70 --// default ImageTransparency of the gradient layer
 Library.HighlightEdgeEnabled = true
-Library.GradientTextureTransparency = 0.78 --// default ImageTransparency of Gradient.png
+Library.GradientTextureTransparency = 0.70 --// default ImageTransparency of Gradient.png
 Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "chrome" | "panel" | "control" | "solid"
 Library.StyleBase = setmetatable({}, { __mode = "k" }) --// Instance -> original BackgroundTransparency
 Library.StylePending = {}
@@ -3952,9 +3952,11 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
     Scroll.ScrollBarThickness = 0
     Scroll.ScrollBarImageTransparency = 1
 
+    --// Neutral, low-contrast thumb: the old accent-blue line stood out as a
+    --// bright stripe down the side of every page. \\--
     local Thumb = New("Frame", {
         Name = "AstralScrollbar",
-        BackgroundColor3 = "FontColor",
+        BackgroundColor3 = "OutlineColor",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.fromOffset(4, 0),
@@ -3962,14 +3964,14 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         ZIndex = ScrollbarThumbZ,
         Parent = Layer,
     })
-    Library:AddToRegistry(Thumb, { BackgroundColor3 = "AccentColor" })
+    Library:AddToRegistry(Thumb, { BackgroundColor3 = "OutlineColor" })
 
     --// Faint rounded trough behind the thumb. It fades in with the thumb, so
     --// the control reads as a scrollbar while it is active and disappears
     --// completely when idle. \\--
     local Track = New("Frame", {
         Name = "AstralScrollbarTrack",
-        BackgroundColor3 = "AccentColor",
+        BackgroundColor3 = "OutlineColor",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.fromOffset(2, 0),
@@ -3977,7 +3979,7 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         ZIndex = ScrollbarTrackZ,
         Parent = Layer,
     })
-    Library:AddToRegistry(Track, { BackgroundColor3 = "AccentColor" })
+    Library:AddToRegistry(Track, { BackgroundColor3 = "OutlineColor" })
 
     local State = {
         Scroll = Scroll,
@@ -15341,7 +15343,7 @@ function Library:CreateWindow(WindowInfo)
     Library.WindowTransparency = math.clamp(tonumber(WindowInfo.Transparency) or 0, 0, 0.85)
     Library.GradientsEnabled = WindowInfo.Gradient ~= false
     Library.GradientRotation = tonumber(WindowInfo.GradientRotation) or 45
-    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.78, 0, 1)
+    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.70, 0, 1)
     Library.GradientTextureTransparency = Library.GradientTransparency
     Library.HighlightEdgeEnabled = WindowInfo.HighlightEdge ~= false
     if typeof(WindowInfo.GradientColor) == "Color3" then
@@ -15681,6 +15683,14 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = Library.BackgroundFrame.ZIndex,
             Parent = Library.BackgroundFrame,
         })
+        --// Round the artwork itself as well as relying on the clipping parent.
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = Library.GradientOverlay,
+            })
+        )
         --// Tints the neutral artwork with the current theme (accent + background).
         Library.GradientObject = New("UIGradient", {
             Parent = Library.GradientOverlay,
@@ -15784,7 +15794,8 @@ function Library:CreateWindow(WindowInfo)
         DividerLine = New("Frame", {
             BackgroundColor3 = "OutlineColor",
             Position = UDim2.fromOffset(InitialLeftWidth, 0),
-            Size = UDim2.new(0, 1, 1, -20),
+            --// Runs the full height so the sidebar and footer join on a line.
+            Size = UDim2.new(0, 1, 1, 0),
             ZIndex = MainFrame.ZIndex + 1,
             Parent = MainFrame,
         })
@@ -17509,7 +17520,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
+            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, MainFrame)
 
             do
                 New("Frame", {
@@ -18994,7 +19005,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
+            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, MainFrame)
         end
 
         local Tab = {
@@ -20189,6 +20200,8 @@ function Library:CreateWindow(WindowInfo)
         local SearchOverlay = New("Frame", {
             BackgroundColor3 = "MainColor",
             BorderSizePixel = 0,
+            --// Keep its fades and scrolled content inside the rounded overlay.
+            ClipsDescendants = true,
             Size = UDim2.new(0, 300, 0, 400),
             Visible = false,
             Active = true, --// swallow clicks so they don't reach elements underneath \\--
