@@ -1802,7 +1802,9 @@ end
 local function ApplyRootStyle(Frame: GuiObject, Base: number)
     local Gradient = Library.StyleGradients[Frame]
     
-    local Transparency = math.clamp(Library:GetSurfaceAlpha("chrome") * 0.3, 0, 0.35)
+    --// Overlay roots stay mostly opaque even at high window transparency so
+    --// menus, dialogs and pop-outs remain readable.
+    local Transparency = math.clamp(Library:GetSurfaceAlpha("chrome") * 0.18, 0, 0.22)
 
     local Fill = Library.RootFill[Frame] or "BackgroundColor"
     if Library.Registry[Frame] then
@@ -1854,7 +1856,10 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
         return
     end
 
-    if Mode == "solid" then
+    if Mode == "none" then
+        --// Container only: its own fill is drawn by the dedicated Background child.
+        return
+    elseif Mode == "solid" then
         Inst.BackgroundTransparency = 0
     elseif Mode == "root" then
         ApplyRootStyle(Inst, Base)
@@ -1862,7 +1867,17 @@ function Library:ApplyStyleTo(Inst: GuiObject, Mode: string?)
         --// ONE alpha per role, no per-frame tweaking: chrome surfaces (window,
         --// titlebar, topbar, sidebar, page, footer) resolve to the exact same
         --// transparency, while sections use their own token to add depth.
-        Inst.BackgroundTransparency = Library:GetSurfaceAlpha(Mode)
+        local Alpha = Library:GetSurfaceAlpha(Mode)
+
+        --// Floating overlays (menus, dialogs, pop-outs, notifications) are not
+        --// part of the main glass sheet — cap their alpha so raising the window
+        --// transparency never makes them disappear into the game.
+        local Root = Library:GetStyleRoot(Inst)
+        if Root and Root ~= Library.MainFrame then
+            Alpha = math.min(Alpha, 0.32)
+        end
+
+        Inst.BackgroundTransparency = Alpha
     end
 end
 
@@ -2817,9 +2832,16 @@ end
 Library.EdgeFadeData = setmetatable({}, { __mode = "k" })
 
 function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?, Inset: number?): GuiObject
+    --// Always fade to a DARK shade. Page fades used a "slightly lighter"
+    --// surface color which turned white in light themes. \--
+    local FadeColor = function()
+        local Base = Library.Scheme.BackgroundColor or Color3.fromRGB(13, 13, 16)
+        return Base:Lerp(Color3.new(0, 0, 0), 0.7)
+    end
+
     local Fade = New("Frame", {
         AnchorPoint = Edge == "top" and Vector2.zero or Vector2.new(0, 1),
-        BackgroundColor3 = ColorIndex,
+        BackgroundColor3 = FadeColor,
         BorderSizePixel = 0,
         Name = "EdgeFade_" .. Edge,
         Position = Edge == "top" and UDim2.fromOffset(0, Inset or 0) or UDim2.new(0, 0, 1, -(Inset or 0)),
@@ -15597,9 +15619,10 @@ function Library:CreateWindow(WindowInfo)
         end)
 
         MainFrame = New("TextButton", {
-            --// Shared chrome color. The gradient overlay tints it; no separate
-            --// "darker window" shade so it matches the titlebar/topbar/page.
+            --// Container only: the visible chrome lives in the Background child,
+            --// which also clips the gradient artwork to the window's rounded shape. \\--
             BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
             Name = "Main",
             Text = "",
             Position = WindowInfo.Position,
@@ -15626,16 +15649,15 @@ function Library:CreateWindow(WindowInfo)
         MainWindowScale = MainFrame:FindFirstChildOfClass("UIScale")
         Library.MainFrame = MainFrame
 
-        --// Gradient overlay: the theme's Gradient.png artwork, tinted by a
-        --// ColorSequence derived from the palette. It spans the whole window and
-        --// sits just above the shared chrome fill, below every content surface.
-        Library.GradientOverlay = New("ImageLabel", {
-            BackgroundTransparency = 1,
-            Image = CustomImageManager.GetAsset("GradientBackground") or "",
-            Name = "GradientOverlay",
-            ScaleType = Enum.ScaleType.Stretch,
+        --// Background: one rounded, clipping surface that paints the shared
+        --// chrome color. The gradient artwork is its CHILD, drawn above the fill
+        --// and clipped by ClipsDescendants, so it can never spill past the
+        --// window's corners (no second UICorner needed on the artwork itself).
+        Library.BackgroundFrame = New("Frame", {
+            BackgroundColor3 = "BackgroundColor",
+            ClipsDescendants = true,
+            Name = "Background",
             Size = UDim2.fromScale(1, 1),
-            Visible = Library.GradientsEnabled,
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
@@ -15643,9 +15665,22 @@ function Library:CreateWindow(WindowInfo)
             Library.Corners,
             New("UICorner", {
                 CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = Library.GradientOverlay,
+                Parent = Library.BackgroundFrame,
             })
         )
+        Library.StyleTargets[Library.BackgroundFrame] = "chrome"
+
+        Library.GradientOverlay = New("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = CustomImageManager.GetAsset("GradientBackground") or "",
+            ImageTransparency = Library.GradientTextureTransparency,
+            Name = "GradientOverlay",
+            ScaleType = Enum.ScaleType.Stretch,
+            Size = UDim2.fromScale(1, 1),
+            Visible = Library.GradientsEnabled,
+            ZIndex = Library.BackgroundFrame.ZIndex,
+            Parent = Library.BackgroundFrame,
+        })
         --// Tints the neutral artwork with the current theme (accent + background).
         Library.GradientObject = New("UIGradient", {
             Parent = Library.GradientOverlay,
@@ -15665,7 +15700,7 @@ function Library:CreateWindow(WindowInfo)
                 end
             end
         end)
-        Library.StyleTargets[MainFrame] = "main"
+        Library.StyleTargets[MainFrame] = "none"
         Library.StyleRoots[MainFrame] = true
         Library.MainWindowScale = MainWindowScale
         Library.CenterMainWindow = WindowInfo.Center and true or false
@@ -16143,6 +16178,9 @@ function Library:CreateWindow(WindowInfo)
         --// meets the content area cleanly.
         local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "BackgroundColor", WindowInfo.CornerRadius, "chrome")
         BottomFill.Name = "BottomFill"
+        --// Only the bottom-RIGHT corner follows the window radius. The left
+        --// corner must stay square so the footer joins the sidebar seamlessly.
+        Library:SquareCorners(BottomFill, { "BL" }, WindowInfo.CornerRadius)
 
         BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
