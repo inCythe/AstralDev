@@ -16762,12 +16762,13 @@ function Library:CreateWindow(WindowInfo)
                     Header.Pad.PaddingLeft = UDim.new(0, 0)
                     Header.Pad.PaddingRight = UDim.new(0, 0)
                 end
+                --// Compact: keep the icon and chevron as one tight group.
                 if Header.Icon then
                     Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
                     Header.Icon.Position = UDim2.new(0, 4, 0.5, 0)
                 end
-                Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -4, 0.5, 0)
+                Header.Arrow.AnchorPoint = Vector2.new(0, 0.5)
+                Header.Arrow.Position = UDim2.new(0, Header.Icon and 20 or 4, 0.5, 0)
                 Header.Arrow.Visible = true
             else
                 if Header.Pad then
@@ -16820,12 +16821,13 @@ function Library:CreateWindow(WindowInfo)
         for _, Header in Library.TabSectionHeaders do
             Header.Label.Visible = not IsCompact
             if IsCompact then
+                --// Compact: keep the icon and chevron as one tight group.
                 if Header.Icon then
                     Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
                     Header.Icon.Position = UDim2.new(0, 4, 0.5, 0)
                 end
-                Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -4, 0.5, 0)
+                Header.Arrow.AnchorPoint = Vector2.new(0, 0.5)
+                Header.Arrow.Position = UDim2.new(0, Header.Icon and 20 or 4, 0.5, 0)
                 Header.Arrow.Visible = true
             else
                 if Header.Icon then
@@ -17031,8 +17033,9 @@ function Library:CreateWindow(WindowInfo)
                     SectionIconImg.AnchorPoint = Vector2.new(0, 0.5)
                     SectionIconImg.Position = UDim2.new(0, 4, 0.5, 0) -- Icon on the Left
                 end
-                ArrowImg.AnchorPoint = Vector2.new(1, 0.5)
-                ArrowImg.Position = UDim2.new(1, -4, 0.5, 0) -- Arrow on the Right
+                --// Chevron sits right after the icon instead of at the far edge.
+                ArrowImg.AnchorPoint = Vector2.new(0, 0.5)
+                ArrowImg.Position = UDim2.new(0, SectionIconImg and 20 or 4, 0.5, 0)
                 ArrowImg.Visible = true
             else
                 HeaderPad.PaddingLeft = UDim.new(0, 10)
