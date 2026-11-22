@@ -3178,31 +3178,31 @@ ThemeManager includes 18 pre-configured themes:
 
 #### Gradients and Transparency
 
-Every built-in theme has a `GradientColor`. The window is painted with a gradient from the background color to the gradient color, so the whole UI has depth instead of a flat background. Themes (custom or imported) that don't define one get a gradient color derived from their accent color.
+The window backdrop uses the bundled `Gradient.png` artwork. It is drawn above the shared `Background` fill (which clips it to the window's rounded corners) and tinted with a theme-derived sequence, so the whole UI has depth without a flat or off-palette wash. Themes that define a `GradientColor` shift the tint toward it; others derive one from the accent color.
 
 The theme section gets a **Gradient color** picker, a **Gradients** toggle (turn it off for a flat background), a **Window transparency** slider (0-85%), a **Gradient transparency** slider (0-100%, softens the gradient wash itself) and an **Edge highlight** toggle (accent-tinted ring around the window). The same controls exist in code:
 
 ```lua
 Library:SetGradientsEnabled(false)
 Library:SetWindowTransparency(0.2)       -- 0 = opaque, max 0.85
-Library:SetGradientTransparency(0.2)    -- 0 = solid wash, 1 = invisible
+Library:SetGradientTransparency(0.7)    -- 0 = solid wash, 1 = invisible (default 0.7)
 Library:SetHighlightEdge(false)
 Library:SetGradientColor(Color3.fromHex("1b2540"))   -- nil = derived from the theme
 Library:SetGradientRotation(45)          -- degrees
 
 Window:SetTransparency(0.2)
 Window:SetGradient(true)
-Window:SetGradientTransparency(0.2)
+Window:SetGradientTransparency(0.7)
 Window:SetHighlightEdge(true)
 ```
 
 The gradient and transparency cover the whole UI: the window, tab pages, sections, every control (including search boxes and inputs) and every overlay (draggable menus and labels, notifications, context menus, popped-out sections). Overlays get their own gradient and are fully opaque until you raise the transparency. Controls always let a little of the gradient show through while gradients are on.
 
-The window gradient is now painted from a theme-derived three-stop sequence: a start tint near the background, a middle stop anchored on the theme background color, and an end tint derived from the accent color. This keeps the gradient within the theme family and preserves text contrast regardless of the selected theme.
+The tint runs from the theme background through the accent to the second accent, keeping the gradient artwork within the theme family while preserving text contrast. The window, titlebar, sidebar, page and footer share one background color and one alpha; sections use a separate alpha so they stand out.
 
 Custom themes save their gradient color. The Gradients toggle and transparency slider are saved in your SaveManager config.
 
-Scrolling surfaces dissolve at their edges instead of hard-clipping: the sidebar tab list fades out at the top and bottom (the bottom fade is taller so tabs melt away before the floating Discord pill), and every tab page scroll fades at its top and bottom edges. The Discord button is a floating pill docked to the bottom-center of the sidebar; in compact sidebar mode it collapses to an icon-only button.
+The Discord button is a floating pill docked to the bottom-center of the sidebar; in compact sidebar mode it collapses to an icon-only button.
 
 ---
 

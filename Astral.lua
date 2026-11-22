@@ -2822,136 +2822,6 @@ function Library:MakeSplitEdgePanel(Frame: GuiObject, Split: number, Radius: num
     return TopFill, BottomFill
 end
 
---// Soft edge fade for scrolling surfaces: a thin frame painted in the surface's
---// own color whose UIGradient Transparency runs from opaque at the edge to fully
---// transparent inward, so scrolled content dissolves instead of hard-clipping.
---// Parent must be a non-scrolling host (siblings of the ScrollingFrame), and the
---// fade's ZIndex should sit one step above the scroll content. \--
---// Fade frames keep their gradient + animation state here. The frame is always
---// full-width so the fade reaches the right edge of the UI it belongs to.
-Library.EdgeFadeData = setmetatable({}, { __mode = "k" })
-
-function Library:AddEdgeFade(Parent: GuiObject, Edge: string, Thickness: number, ColorIndex: string | (() -> Color3), ZIndex: number?, Inset: number?): GuiObject
-    --// Always fade to a DARK shade. Page fades used a "slightly lighter"
-    --// surface color which turned white in light themes. \--
-    local FadeColor = function()
-        local Base = Library.Scheme.BackgroundColor or Color3.fromRGB(13, 13, 16)
-        return Base:Lerp(Color3.new(0, 0, 0), 0.7)
-    end
-
-    local Fade = New("Frame", {
-        AnchorPoint = Edge == "top" and Vector2.zero or Vector2.new(0, 1),
-        BackgroundColor3 = FadeColor,
-        BorderSizePixel = 0,
-        Name = "EdgeFade_" .. Edge,
-        Position = Edge == "top" and UDim2.fromOffset(0, Inset or 0) or UDim2.new(0, 0, 1, -(Inset or 0)),
-        Size = UDim2.new(1, 0, 0, Thickness),
-        ZIndex = ZIndex,
-        Parent = Parent,
-    })
-
-    local Gradient = New("UIGradient", {
-        Rotation = 90,
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, Edge == "top" and 0 or 1),
-            NumberSequenceKeypoint.new(1, Edge == "top" and 1 or 0),
-        }),
-        Parent = Fade,
-    })
-
-    Library.EdgeFadeData[Fade] = {
-        Gradient = Gradient,
-        Edge = Edge,
-        Amount = 1,
-        Shown = true,
-    }
-
-    return Fade
-end
-
---// Fades the edge gradient in/out instead of snapping Visible on/off. Driven by
---// a NumberValue proxy so TweenService can interpolate the NumberSequence.
-function Library:SetEdgeFadeVisible(Fade: GuiObject, Visible: boolean, Animate: boolean?)
-    local Data = Library.EdgeFadeData[Fade]
-    if not Data then
-        Fade.Visible = Visible
-        return
-    end
-    if Data.Shown == Visible then
-        return
-    end
-    Data.Shown = Visible
-    Data.Token = (Data.Token or 0) + 1
-    local Token = Data.Token
-
-    if Data.Connection then
-        Data.Connection:Disconnect()
-        Data.Connection = nil
-    end
-    if Data.Tween then
-        Data.Tween:Cancel()
-        Data.Tween = nil
-    end
-
-    local function Apply(Amount: number)
-        Data.Amount = Amount
-        if not Data.Gradient.Parent then
-            return
-        end
-        if Data.Edge == "top" then
-            Data.Gradient.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 1 - Amount),
-                NumberSequenceKeypoint.new(1, 1),
-            })
-        else
-            Data.Gradient.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 1),
-                NumberSequenceKeypoint.new(1, 1 - Amount),
-            })
-        end
-    end
-
-    if Animate ~= true then
-        if Visible then
-            Fade.Visible = true
-            Apply(1)
-        else
-            Apply(0)
-            Fade.Visible = false
-        end
-        return
-    end
-
-    --// Keep the frame rendered while the amount animates in either direction.
-    Fade.Visible = true
-
-    local Proxy = Instance.new("NumberValue")
-    Proxy.Value = Data.Amount
-    Data.Connection = Proxy:GetPropertyChangedSignal("Value"):Connect(function()
-        Apply(Proxy.Value)
-    end)
-    Data.Tween = TweenService:Create(Proxy, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Value = Visible and 1 or 0,
-    })
-    Data.Tween:Play()
-
-    task.delay(0.22, function()
-        if Token ~= Data.Token then
-            Proxy:Destroy()
-            return
-        end
-        if Data.Connection then
-            Data.Connection:Disconnect()
-            Data.Connection = nil
-        end
-        Data.Tween = nil
-        if not Visible and Data.Shown == false and Fade.Parent then
-            Fade.Visible = false
-        end
-        Proxy:Destroy()
-    end)
-end
-
 --// Soft drop shadow drawn behind a surface. The shadow is a child with a ZIndex
 --// below its parent, so under ZIndexBehavior.Global it renders behind the parent's
 --// own background and peeks out around the edges (parents must not clip
@@ -3849,70 +3719,6 @@ local function ScrollbarAncestorsVisible(Scroll: ScrollingFrame): boolean
         Current = Current.Parent
     end
     return true
-end
-
---// Top + bottom edge fades for a ScrollingFrame, shown only when there is
---// actually hidden content in that direction: the top fade appears once the
---// canvas is scrolled down, the bottom fade only while more content sits below
---// the viewport. When everything fits, neither fade renders. \--
-function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?, TopInset: number?, BottomInset: number?, FadeHost: GuiObject?)
-    --// Fades are plain GuiObjects: on a layout-managed host they would become
-    --// layout items themselves, so bail out instead of corrupting the layout. \
-    local FadeParent = FadeHost or Host
-    if FadeParent:FindFirstChildOfClass("UIListLayout")
-        or FadeParent:FindFirstChildOfClass("UIGridLayout")
-        or FadeParent:FindFirstChildOfClass("UIFlexLayout")
-        or FadeParent:FindFirstChildOfClass("UIPageLayout")
-    then
-        return nil
-    end
-
-    --// The host must clip its descendants, otherwise the rectangular fade
-    --// frames spill past rounded panels and create sharp corner artifacts.
-    FadeParent.ClipsDescendants = true
-
-    --// When a page frame is supplied the fades are parented there and stretch
-    --// across that frame (edge to edge) instead of only the scroll canvas.
-    local Top = Library:AddEdgeFade(FadeParent, "top", Thickness or 20, ColorIndex, ZIndex, TopInset)
-    local Bottom = Library:AddEdgeFade(FadeParent, "bottom", Thickness or 20, ColorIndex, ZIndex, BottomInset)
-
-    local function Update()
-        if not ScrollbarAncestorsVisible(Scroll) then
-            Library:SetEdgeFadeVisible(Top, false, true)
-            Library:SetEdgeFadeVisible(Bottom, false, true)
-            return
-        end
-
-        local Canvas = Scroll.AbsoluteCanvasSize.Y
-        local View = Scroll.AbsoluteWindowSize.Y
-        local Pos = Scroll.CanvasPosition.Y
-        local Overflow = Canvas > View + 1
-
-        --// Animated so reaching the top/bottom of the canvas fades smoothly
-        --// instead of popping a hard gradient edge into view.
-        Library:SetEdgeFadeVisible(Top, Overflow and Pos > 1, true)
-        Library:SetEdgeFadeVisible(Bottom, Overflow and (Pos + View) < Canvas - 1, true)
-    end
-
-    Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(Update)
-    Scroll:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(Update)
-    Scroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(Update)
-
-    --// Ancestor visibility matters too: the window itself starts hidden, so the
-    --// scroll's own Visible never changes when the UI first appears. \--
-    local function WatchVisible(Inst: Instance)
-        if not Inst:IsA("GuiObject") then
-            return
-        end
-        Inst:GetPropertyChangedSignal("Visible"):Connect(Update)
-        if Inst.Parent then
-            WatchVisible(Inst.Parent)
-        end
-    end
-    WatchVisible(Scroll)
-    task.defer(Update)
-
-    return Top, Bottom
 end
 
 function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
@@ -12467,7 +12273,6 @@ do
         })
         Library:AddToRegistry(InlineList, { ScrollBarImageColor3 = "OutlineColor" })
         Library:AddCustomScrollbar(InlineList)
-        Library:AddScrollEdgeFades(ListShell, InlineList, "MainColor", InlineList.ZIndex + 1)
 
         local function SetListHeight(Height: number)
             ListWrap.Size = UDim2.new(1, 0, 0, math.max(Height - 1, 0))
@@ -16321,11 +16126,6 @@ function Library:CreateWindow(WindowInfo)
             Parent = Tabs,
         })
 
-        --// Edge fades dissolve scrolled tabs into the sidebar surface. The bottom
-        --// fade is taller so content melts away before it reaches the Discord pill. \
-        local TabsFadeZ = Tabs.ZIndex + 1
-        Library:AddScrollEdgeFades(TabsViewport, Tabs, "BackgroundColor", TabsFadeZ)
-
         if DiscordBtnHeight > 0 then
             local HttpService = cloneref(game:GetService("HttpService"))
             local DiscordUrl = WindowInfo.DiscordLink
@@ -17509,14 +17309,6 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TabScroll,
             })
 
-            --// Edge fades dissolve scrolled page content into the container surface.
-            --// They are siblings of the scroll (not children) so they stay pinned. \
-            local PageFadeZ = TabScroll.ZIndex + 1
-            local PageFadeColor = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
-            end
-            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
-
             do
                 New("Frame", {
                     BackgroundTransparency = 1,
@@ -17639,7 +17431,6 @@ function Library:CreateWindow(WindowInfo)
                 Parent = WarningBox,
             })
             Library:AddCustomScrollbar(WarningBoxScrollingFrame)
-            Library:AddScrollEdgeFades(WarningBox, WarningBoxScrollingFrame, "PanelColor", WarningBoxScrollingFrame.ZIndex + 1)
             New("UIPadding", {
                 PaddingBottom = UDim.new(0, 4),
                 PaddingLeft = UDim.new(0, 6),
@@ -18111,7 +17902,6 @@ function Library:CreateWindow(WindowInfo)
                             Size = UDim2.new(1, 0, 1, -(HeaderHeight + 1)),
                             Parent = SectionHolder,
                         })
-                        Library:AddScrollEdgeFades(SectionHolder, BodyScroll, "PanelColor", BodyScroll.ZIndex + 1, nil, HeaderHeight + 1)
                     end
 
                     SectionContainer.Position = UDim2.new()
@@ -18679,7 +18469,6 @@ function Library:CreateWindow(WindowInfo)
                             Visible = WasVisible,
                             Parent = SectionGroupHolder,
                         })
-                        Library:AddScrollEdgeFades(SectionGroupHolder, Scroll, "PanelColor", Scroll.ZIndex + 1, nil, BarHeight)
 
                         Container.Position = UDim2.new()
                         Container.Size = UDim2.new(1, 0, 0, 0)
@@ -18993,14 +18782,6 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TabContainer,
             })
 
-            --// Edge fades dissolve scrolled page content into the container surface.
-            --// The scroll itself can't host them (children scroll with the canvas),
-            --// so they live on Container and mirror the scroll's visibility. \
-            local PageFadeZ = TabContainer.ZIndex + 1
-            local PageFadeColor = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
-            end
-            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
         end
 
         local Tab = {
@@ -20195,7 +19976,7 @@ function Library:CreateWindow(WindowInfo)
         local SearchOverlay = New("Frame", {
             BackgroundColor3 = "MainColor",
             BorderSizePixel = 0,
-            --// Keep its fades and scrolled content inside the rounded overlay.
+            --// Keep scrolled content inside the rounded overlay.
             ClipsDescendants = true,
             Size = UDim2.new(0, 300, 0, 400),
             Visible = false,
@@ -20231,7 +20012,6 @@ function Library:CreateWindow(WindowInfo)
         })
         Library:AddToRegistry(ScrollFrame, { ScrollBarImageColor3 = "OutlineColor" })
         Library:AddCustomScrollbar(ScrollFrame)
-        Library:AddScrollEdgeFades(SearchOverlay, ScrollFrame, "MainColor", ScrollFrame.ZIndex + 1)
 
         New("UICorner", {
             CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
