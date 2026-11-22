@@ -578,7 +578,7 @@ local Templates = {
         Gradient = true,
         GradientColor = nil,
         GradientRotation = 45,
-        GradientTransparency = 0.72, --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
+        GradientTransparency = 0.78, --// default ImageTransparency of the gradient layer (0 solid, 1 invisible)
         HighlightEdge = true, --// accent-tinted edge highlight stroke around the window
         ToggleKeybind = Enum.KeyCode.RightControl,
 
@@ -1685,9 +1685,9 @@ end
 Library.WindowTransparency = 0
 Library.GradientsEnabled = true
 Library.GradientRotation = 45
-Library.GradientTransparency = 0.72 --// 0 = solid gradient wash, 1 = gradient overlay fully invisible
+Library.GradientTransparency = 0.78 --// default ImageTransparency of the gradient layer
 Library.HighlightEdgeEnabled = true
-Library.GradientTextureTransparency = 0.72 --// base ImageTransparency of Gradient.png
+Library.GradientTextureTransparency = 0.78 --// default ImageTransparency of Gradient.png
 Library.StyleTargets = setmetatable({}, { __mode = "k" }) --// Instance -> "main" | "chrome" | "panel" | "control" | "solid"
 Library.StyleBase = setmetatable({}, { __mode = "k" }) --// Instance -> original BackgroundTransparency
 Library.StylePending = {}
@@ -15341,7 +15341,7 @@ function Library:CreateWindow(WindowInfo)
     Library.WindowTransparency = math.clamp(tonumber(WindowInfo.Transparency) or 0, 0, 0.85)
     Library.GradientsEnabled = WindowInfo.Gradient ~= false
     Library.GradientRotation = tonumber(WindowInfo.GradientRotation) or 45
-    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.72, 0, 1)
+    Library.GradientTransparency = math.clamp(tonumber(WindowInfo.GradientTransparency) or 0.78, 0, 1)
     Library.GradientTextureTransparency = Library.GradientTransparency
     Library.HighlightEdgeEnabled = WindowInfo.HighlightEdge ~= false
     if typeof(WindowInfo.GradientColor) == "Color3" then
@@ -15822,20 +15822,24 @@ function Library:CreateWindow(WindowInfo)
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        local TopBackground = Library:AddEdgeFill(TopCap, "top", "BackgroundColor", WindowInfo.CornerRadius, "chrome")
+        --// No own fill here: the Background frame already paints the window,
+        --// and its gradient child must remain visible above that fill.
+        local TopBackground = Library:AddEdgeFill(TopCap, "top", "BackgroundColor", WindowInfo.CornerRadius, "none")
         TopBackground.Name = "TopBackground"
         TopBackground.Size = UDim2.new(1, 0, 1, WindowInfo.CornerRadius)
+        TopBackground.BackgroundTransparency = 1
 
         local TopFlatBottom = New("Frame", {
             Name = "TopFlatBottom",
             BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
             BorderSizePixel = 0,
             Position = UDim2.fromOffset(0, WindowInfo.CornerRadius),
             Size = UDim2.new(1, 0, 0, 48 - WindowInfo.CornerRadius),
             ZIndex = MainFrame.ZIndex,
             Parent = MainFrame,
         })
-        Library.StyleTargets[TopFlatBottom] = "chrome"
+        Library.StyleTargets[TopFlatBottom] = "none"
 
         Library.LayoutTopBar = function(Radius: number)
             TopCap.Size = UDim2.new(1, 0, 0, Radius)
@@ -16174,13 +16178,11 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, -InitialLeftWidth, 0, 1),
         })
 
-        --// Footer fill is rounded on the bottom edge only; the straight top edge
-        --// meets the content area cleanly.
-        local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "BackgroundColor", WindowInfo.CornerRadius, "chrome")
+        --// The footer is shaped by the Background clip; it has no own fill so
+        --// the gradient above the background stays visible along the bottom.
+        local BottomFill = Library:AddEdgeFill(BottomBackground, "bottom", "BackgroundColor", WindowInfo.CornerRadius, "none")
         BottomFill.Name = "BottomFill"
-        --// Only the bottom-RIGHT corner follows the window radius. The left
-        --// corner must stay square so the footer joins the sidebar seamlessly.
-        Library:SquareCorners(BottomFill, { "BL" }, WindowInfo.CornerRadius)
+        BottomFill.BackgroundTransparency = 1
 
         BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -16264,11 +16266,14 @@ function Library:CreateWindow(WindowInfo)
         --// of its own — that was the source of the rounded-corner seams.
         Sidebar = New("Frame", {
             BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
             Position = UDim2.fromOffset(0, 0),
             Size = UDim2.new(0, InitialLeftWidth, 1, 0),
             Parent = MainFrame,
         })
-        Library.StyleTargets[Sidebar] = "chrome"
+        --// The Background frame below paints this area; no second fill, so the
+        --// gradient image always sits above the chrome instead of behind it.
+        Library.StyleTargets[Sidebar] = "none"
 
         DiscordBtnHeight = (WindowInfo.DiscordLink and typeof(WindowInfo.DiscordLink) == "string") and 36 or 0
 
@@ -16483,16 +16488,17 @@ function Library:CreateWindow(WindowInfo)
 
         Container = New("Frame", {
             AnchorPoint = Vector2.new(1, 0),
-            --// Same color as the window/topbar/sidebar: the page is part of the
-            --// same glass sheet, not a separate tinted panel.
+            --// No own fill: the single Background frame paints the page too, so
+            --// the gradient layered above it is always visible.
             BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
             Name = "Container",
             --// Start flush with the 48px topbar — no 1px gap underneath it.
             Position = UDim2.new(1, 0, 0, 48),
             Size = UDim2.new(1, -InitialLeftWidth, 1, -69),
             Parent = MainFrame,
         })
-        Library.StyleTargets[Container] = "chrome"
+        Library.StyleTargets[Container] = "none"
         New("UIPadding", {
             PaddingBottom = UDim.new(0, 0),
             PaddingLeft = UDim.new(0, 6),
