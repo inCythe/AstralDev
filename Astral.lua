@@ -3867,8 +3867,12 @@ function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, Col
         return nil
     end
 
+    --// The host must clip its descendants, otherwise the rectangular fade
+    --// frames spill past rounded panels and create sharp corner artifacts.
+    FadeParent.ClipsDescendants = true
+
     --// When a page frame is supplied the fades are parented there and stretch
-    --// across the WHOLE page (edge to edge) instead of only the scroll canvas.
+    --// across that frame (edge to edge) instead of only the scroll canvas.
     local Top = Library:AddEdgeFade(FadeParent, "top", Thickness or 20, ColorIndex, ZIndex, TopInset)
     local Bottom = Library:AddEdgeFade(FadeParent, "bottom", Thickness or 20, ColorIndex, ZIndex, BottomInset)
 
@@ -3952,11 +3956,10 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
     Scroll.ScrollBarThickness = 0
     Scroll.ScrollBarImageTransparency = 1
 
-    --// Neutral, low-contrast thumb: the old accent-blue line stood out as a
-    --// bright stripe down the side of every page. \\--
+    --// Only the accent pill is drawn — the trough/"line" is never shown. \\--
     local Thumb = New("Frame", {
         Name = "AstralScrollbar",
-        BackgroundColor3 = "OutlineColor",
+        BackgroundColor3 = "AccentColor",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.fromOffset(4, 0),
@@ -3964,14 +3967,13 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         ZIndex = ScrollbarThumbZ,
         Parent = Layer,
     })
-    Library:AddToRegistry(Thumb, { BackgroundColor3 = "OutlineColor" })
+    Library:AddToRegistry(Thumb, { BackgroundColor3 = "AccentColor" })
 
-    --// Faint rounded trough behind the thumb. It fades in with the thumb, so
-    --// the control reads as a scrollbar while it is active and disappears
-    --// completely when idle. \\--
+    --// Kept for state compatibility but intentionally never visible: the thin
+    --// full-height line was the stray accent line users saw beside pages. \\--
     local Track = New("Frame", {
         Name = "AstralScrollbarTrack",
-        BackgroundColor3 = "OutlineColor",
+        BackgroundColor3 = "AccentColor",
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.fromOffset(2, 0),
@@ -3979,7 +3981,7 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         ZIndex = ScrollbarTrackZ,
         Parent = Layer,
     })
-    Library:AddToRegistry(Track, { BackgroundColor3 = "OutlineColor" })
+    Library:AddToRegistry(Track, { BackgroundColor3 = "AccentColor" })
 
     local State = {
         Scroll = Scroll,
@@ -4001,17 +4003,12 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         if not State.Shown then
             State.Shown = true
             Thumb.Visible = true
-            Track.Visible = true
             Thumb.BackgroundTransparency = 1
-            Track.BackgroundTransparency = 1
         end
         --// Only fade in when actually faded: scrolling fires this every
         --// frame, and spawning a tween per frame would be wasteful. \\--
         if Thumb.BackgroundTransparency > 0.5 then
             TweenService:Create(Thumb, TweenInfo.new(0.15), { BackgroundTransparency = 0.4 }):Play()
-        end
-        if Track.BackgroundTransparency > 0.95 then
-            TweenService:Create(Track, TweenInfo.new(0.15), { BackgroundTransparency = 0.94 }):Play()
         end
     end
 
@@ -4024,11 +4021,9 @@ function Library:AddCustomScrollbar(Scroll: ScrollingFrame)
         State.HideToken += 1
         local Token = State.HideToken
         TweenService:Create(Thumb, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
-        TweenService:Create(Track, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
         task.delay(0.32, function()
             if Token == State.HideToken and not State.Hover and not State.Dragging then
                 Thumb.Visible = false
-                Track.Visible = false
                 State.Shown = false
             end
         end)
@@ -17520,7 +17515,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, MainFrame)
+            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
 
             do
                 New("Frame", {
@@ -19005,7 +19000,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, MainFrame)
+            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
         end
 
         local Tab = {
