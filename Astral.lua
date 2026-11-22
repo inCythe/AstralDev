@@ -399,6 +399,7 @@ local Library = {
             Chrome = 0,      -- window / titlebar / topbar / sidebar / page / footer
             Panel = -0.10,   -- sections, dialogs, popouts (elevated, less see-through)
             Control = -0.04, -- buttons, inputs, value boxes
+            Discord = 0.30,  -- Discord pill: a touch see-through over the sidebar
         },
     },
 
@@ -1736,6 +1737,8 @@ function Library:GetSurfaceAlpha(Role: string?): number
         Offset = Library.Design.Alpha.Chrome
     elseif Role == "card" then
         Offset = Library.Design.Alpha.Control
+    elseif Role == "discord" then
+        Offset = Library.Design.Alpha.Discord
     end
     if Offset == nil then
         Offset = 0
@@ -3830,19 +3833,22 @@ end
 --// actually hidden content in that direction: the top fade appears once the
 --// canvas is scrolled down, the bottom fade only while more content sits below
 --// the viewport. When everything fits, neither fade renders. \--
-function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?, TopInset: number?, BottomInset: number?)
+function Library:AddScrollEdgeFades(Host: GuiObject, Scroll: ScrollingFrame, ColorIndex: string | (() -> Color3), ZIndex: number?, Thickness: number?, TopInset: number?, BottomInset: number?, FadeHost: GuiObject?)
     --// Fades are plain GuiObjects: on a layout-managed host they would become
     --// layout items themselves, so bail out instead of corrupting the layout. \
-    if Host:FindFirstChildOfClass("UIListLayout")
-        or Host:FindFirstChildOfClass("UIGridLayout")
-        or Host:FindFirstChildOfClass("UIFlexLayout")
-        or Host:FindFirstChildOfClass("UIPageLayout")
+    local FadeParent = FadeHost or Host
+    if FadeParent:FindFirstChildOfClass("UIListLayout")
+        or FadeParent:FindFirstChildOfClass("UIGridLayout")
+        or FadeParent:FindFirstChildOfClass("UIFlexLayout")
+        or FadeParent:FindFirstChildOfClass("UIPageLayout")
     then
         return nil
     end
 
-    local Top = Library:AddEdgeFade(Host, "top", Thickness or 20, ColorIndex, ZIndex, TopInset)
-    local Bottom = Library:AddEdgeFade(Host, "bottom", Thickness or 20, ColorIndex, ZIndex, BottomInset)
+    --// When a page frame is supplied the fades are parented there and stretch
+    --// across the WHOLE page (edge to edge) instead of only the scroll canvas.
+    local Top = Library:AddEdgeFade(FadeParent, "top", Thickness or 20, ColorIndex, ZIndex, TopInset)
+    local Bottom = Library:AddEdgeFade(FadeParent, "bottom", Thickness or 20, ColorIndex, ZIndex, BottomInset)
 
     local function Update()
         if not ScrollbarAncestorsVisible(Scroll) then
@@ -9062,8 +9068,6 @@ do
         local Box = New("TextBox", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundColor3 = "MainColor",
-            --// Same as the slider value box: bare text until it is clicked.
-            BackgroundTransparency = 1,
             ClearTextOnFocus = not Input.Disabled and Input.ClearTextOnFocus,
             PlaceholderText = Input.Placeholder,
             Position = UDim2.fromScale(0, 1),
@@ -9083,25 +9087,14 @@ do
             Parent = Box,
         })
 
-        local BoxStroke = New("UIStroke", {
-            Color = "AccentColor",
-            Transparency = 1,
-            Thickness = 2,
+        --// Regular inputs keep their filled background and outline. Only the
+        --// slider value box and the stepper value use the focus-only treatment.
+        New("UIStroke", {
+            Color = "OutlineColor",
             Parent = Box,
         })
 
-        Box.Focused:Connect(function()
-            if Input.Disabled then
-                Box:ReleaseFocus()
-                return
-            end
-            TweenService:Create(Box, Library.TweenInfo, { BackgroundTransparency = 0.55 }):Play()
-            TweenService:Create(BoxStroke, Library.TweenInfo, { Transparency = 0 }):Play()
-        end)
-        Box.FocusLost:Connect(function()
-            TweenService:Create(Box, Library.TweenInfo, { BackgroundTransparency = 1 }):Play()
-            TweenService:Create(BoxStroke, Library.TweenInfo, { Transparency = 1 }):Play()
-        end)
+        Library:AddFocusHighlight(Box)
 
         table.insert(
             Library.Corners,
@@ -14536,20 +14529,20 @@ do
 
         do
             SubSectionHolder = New("Frame", {
-                BackgroundTransparency = 1,
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 0.3,
                 Size = UDim2.new(1, 0, 0, 0),
                 LayoutOrder = SubSectionOrder or 0,
                 Parent = SubSectionParent,
             })
-            --// Same single-edge construction as sections: rounded header on top,
-            --// rounded body on the bottom, square seam where they meet. \\--
-            Library:MakeSplitEdgePanel(
-                SubSectionHolder,
-                28,
-                Library:GetRadius("panel"),
-                "MainColor",
-                "control"
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, 4),
+                    Parent = SubSectionHolder,
+                })
             )
+            Library:AddOutline(SubSectionHolder)
 
             SubSectionSeparatorLine = Library:MakeLine(SubSectionHolder, {
                 Position = UDim2.fromOffset(0, 28),
@@ -15383,7 +15376,7 @@ function Library:CreateWindow(WindowInfo)
     local SidebarTopInset = 48
     local SidebarTabInset = 8
     local SidebarDiscordSpacing = 6
-    local SidebarDiscordInset = 28 --// 20px footer strip + 8px gap
+    local SidebarDiscordInset = 10 --// footer no longer overlaps the sidebar
     local ExpandedDiscordPadding = 10
     local CompactDiscordPadding = 5
     local CompactTabPadding = 2
@@ -16130,18 +16123,20 @@ function Library:CreateWindow(WindowInfo)
             end)
         end
 
+        --// The footer strip covers ONLY the page (right of the sidebar). The
+        --// sidebar keeps the full left edge down to the bottom of the window.
         BottomBackground = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
             ClipsDescendants = true,
-            Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, math.max(20, WindowInfo.CornerRadius * 2)),
+            Position = UDim2.new(0, InitialLeftWidth, 1, 0),
+            Size = UDim2.new(1, -InitialLeftWidth, 0, math.max(20, WindowInfo.CornerRadius * 2)),
             Parent = MainFrame
         })
         BottomLine = Library:MakeLine(MainFrame, {
             AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, InitialLeftWidth + 1, 1, -20),
-            Size = UDim2.new(1, -(InitialLeftWidth + 1), 0, 1),
+            Position = UDim2.new(0, InitialLeftWidth, 1, -20),
+            Size = UDim2.new(1, -InitialLeftWidth, 0, 1),
         })
 
         --// Footer fill is rounded on the bottom edge only; the straight top edge
@@ -16152,8 +16147,8 @@ function Library:CreateWindow(WindowInfo)
         BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, InitialLeftWidth + 1, 1, 0),
-            Size = UDim2.new(1, -(InitialLeftWidth + 1), 0, 20),
+            Position = UDim2.new(0, InitialLeftWidth, 1, 0),
+            Size = UDim2.new(1, -InitialLeftWidth, 0, 20),
             Parent = MainFrame,
         })
 
@@ -16327,7 +16322,7 @@ function Library:CreateWindow(WindowInfo)
                 ZIndex = Tabs.ZIndex + 2,
                 Parent = Sidebar,
             })
-            Library.StyleTargets[DiscordBtn] = "control"
+            Library.StyleTargets[DiscordBtn] = "discord"
             table.insert(
                 Library.Corners,
                 New("UICorner", {
@@ -16424,7 +16419,7 @@ function Library:CreateWindow(WindowInfo)
             end)
             DiscordBtn.MouseLeave:Connect(function()
                 TweenService:Create(DiscordBtn, Library.TweenInfo, {
-                    BackgroundTransparency = 0,
+                    BackgroundTransparency = Library:GetSurfaceAlpha("discord"),
                 }):Play()
                 TweenService:Create(DiscordImgLabel, Library.TweenInfo, {
                     ImageTransparency = 0.5,
@@ -16456,7 +16451,7 @@ function Library:CreateWindow(WindowInfo)
             Name = "Container",
             --// Start flush with the 48px topbar — no 1px gap underneath it.
             Position = UDim2.new(1, 0, 0, 48),
-            Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -69),
+            Size = UDim2.new(1, -InitialLeftWidth, 1, -69),
             Parent = MainFrame,
         })
         Library.StyleTargets[Container] = "chrome"
@@ -16837,7 +16832,9 @@ function Library:CreateWindow(WindowInfo)
         end
 
         ResizeButton.Position = UDim2.new(1, -Radius / 4, 0, 0)
-        BottomBackground.Size = UDim2.new(1, 0, 0, math.max(20, Radius * 2))
+        local SidebarWidthNow = Window:GetSidebarWidth()
+        BottomBackground.Position = UDim2.new(0, SidebarWidthNow, 1, 0)
+        BottomBackground.Size = UDim2.new(1, -SidebarWidthNow, 0, math.max(20, Radius * 2))
 
         for _, Tab in Library.Tabs do
             if Tab.IsKeyTab then
@@ -17028,16 +17025,20 @@ function Library:CreateWindow(WindowInfo)
 
         RightWrapper.Size = UDim2.new(1, -Width - 90 - 1, 1, -16)
         Sidebar.Size = UDim2.new(0, Width, 1, 0)
-        Container.Size = UDim2.new(1, -Width - 1, 1, -70)
+        Container.Size = UDim2.new(1, -Width, 1, -69)
 
-        --// Footer row + its separator only span the content page, not the sidebar. \
+        --// Footer row + its separator start exactly at the sidebar's right edge.
+        if BottomBackground then
+            BottomBackground.Position = UDim2.new(0, Width, 1, 0)
+            BottomBackground.Size = UDim2.new(1, -Width, 0, math.max(20, WindowInfo.CornerRadius * 2))
+        end
         if BottomBar then
-            BottomBar.Position = UDim2.new(0, Width + 1, 1, 0)
-            BottomBar.Size = UDim2.new(1, -(Width + 1), 0, 20)
+            BottomBar.Position = UDim2.new(0, Width, 1, 0)
+            BottomBar.Size = UDim2.new(1, -Width, 0, 20)
         end
         if BottomLine then
-            BottomLine.Position = UDim2.new(0, Width + 1, 1, -20)
-            BottomLine.Size = UDim2.new(1, -(Width + 1), 0, 1)
+            BottomLine.Position = UDim2.new(0, Width, 1, -20)
+            BottomLine.Size = UDim2.new(1, -Width, 0, 1)
         end
 
         LayoutTitleText(Width)
@@ -17464,7 +17465,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ)
+            Library:AddScrollEdgeFades(TabContainer, TabScroll, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
 
             do
                 New("Frame", {
@@ -17812,20 +17813,20 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionHolder = New("Frame", {
-                    BackgroundTransparency = 1,
+                    BackgroundColor3 = "PanelColor",
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
-                --// Sections are the only surfaces with their own alpha: a single
-                --// panel token for the fill, split into a top-rounded header and
-                --// a bottom-rounded body so no double-rounded seam shows through.
-                Library:MakeSplitEdgePanel(
-                    SectionHolder,
-                    HeaderHeight,
-                    Library:GetRadius("panel"),
-                    "PanelColor",
-                    "panel"
+                --// A single radius on one fill — two stacked half-panels used to
+                --// leave a visible seam and broken corners on translucent windows. \\--
+                table.insert(
+                    Library.Corners,
+                    New("UICorner", {
+                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
+                        Parent = SectionHolder,
+                    })
                 )
+                Library:AddOutline(SectionHolder)
 
                 SectionSeparatorLine = Library:MakeLine(SectionHolder, {
                     Position = UDim2.fromOffset(0, HeaderHeight),
@@ -18369,28 +18370,25 @@ function Library:CreateWindow(WindowInfo)
 
             do
                 SectionGroupHolder = New("Frame", {
-                    BackgroundTransparency = 1,
+                    BackgroundColor3 = "PanelColor",
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
                 })
-                local GroupTopFill, GroupBottomFill = Library:MakeSplitEdgePanel(
-                    SectionGroupHolder, BarHeight, Library:GetRadius("panel"), "PanelColor", "panel"
+                table.insert(
+                    Library.Corners,
+                    New("UICorner", {
+                        CornerRadius = UDim.new(0, Library:GetRadius("panel")),
+                        Parent = SectionGroupHolder,
+                    })
                 )
-                local GroupStrokes = {
-                    GroupTopFill:FindFirstChildOfClass("UIStroke"),
-                    GroupBottomFill:FindFirstChildOfClass("UIStroke"),
-                }
+                local OutlineStroke = Library:AddOutline(SectionGroupHolder)
 
                 --// Accent border (set AccentBorder = false for the plain outline). \\--
                 if Info.AccentBorder == true then
-                    for _, OutlineStroke in GroupStrokes do
-                        if OutlineStroke then
-                            Library.Registry[OutlineStroke].Color = nil
-                            OutlineStroke.Color = Color3.new(1, 1, 1)
-                            OutlineStroke.Transparency = 0.35
-                            Library:ApplyAccentGradient(OutlineStroke, 45)
-                        end
-                    end
+                    Library.Registry[OutlineStroke].Color = nil
+                    OutlineStroke.Color = Color3.new(1, 1, 1)
+                    OutlineStroke.Transparency = 0.35
+                    Library:ApplyAccentGradient(OutlineStroke, 45)
                 end
 
                 --// Segmented tab bar: a rounded track with the active tab as an accent pill. \\--
@@ -18952,7 +18950,7 @@ function Library:CreateWindow(WindowInfo)
             local PageFadeColor = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end
-            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ)
+            Library:AddScrollEdgeFades(Container, TabContainer, PageFadeColor, PageFadeZ, nil, nil, nil, Container)
         end
 
         local Tab = {
