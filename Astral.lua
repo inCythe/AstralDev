@@ -15198,12 +15198,12 @@ function Library:CreateWindow(WindowInfo)
     --// the Discord button needs a little more room than the tab icons so the
     --// compact tab icons don't look cramped by comparison. \--
     local SidebarTopInset = 48
-    local SidebarTabInset = 8
+    local SidebarTabInset = 2
     local SidebarDiscordSpacing = 6
     local SidebarDiscordInset = 10 --// footer no longer overlaps the sidebar
     local ExpandedDiscordPadding = 10
     local CompactDiscordPadding = 5
-    local CompactTabPadding = 2
+    local CompactTabPadding = 1
 
     --// Sizes the title + subtitle stack to fit the sidebar header. Called on
     --// creation, when either text/size changes and when the sidebar resizes. \\--
@@ -16189,9 +16189,12 @@ function Library:CreateWindow(WindowInfo)
             --// NOTE: no UIListLayout here - it would also arrange the shadow
             --// frame child and throw the content outside the button. The icon
             --// and label are positioned manually as a centered group instead. \
+            local DiscordIconSize = 18
+            local DiscordIconGap = 5
             local DiscordTextWidth = math.ceil(select(1, Library:GetTextBounds("Discord", Library.Scheme.Font, 16, 200)))
-            local DiscordGroupWidth = 18 + 10 + DiscordTextWidth
-            local DiscordGroupLeft = -DiscordGroupWidth / 2 - 14
+            --// Icon + small gap + text, centred as one group on the button.
+            local DiscordGroupWidth = DiscordIconSize + DiscordIconGap + DiscordTextWidth
+            local DiscordGroupLeft = -DiscordGroupWidth / 2
 
             local DiscordImgLabel = New("ImageLabel", {
                 AnchorPoint = Vector2.new(0, 0.5),
@@ -16201,7 +16204,7 @@ function Library:CreateWindow(WindowInfo)
                 ImageTransparency = 0.5,
                 Position = UDim2.new(0.5, DiscordGroupLeft, 0.5, 0),
                 ScaleType = Enum.ScaleType.Fit,
-                Size = UDim2.fromOffset(18, 18),
+                Size = UDim2.fromOffset(DiscordIconSize, DiscordIconSize),
                 Visible = true,
                 Parent = DiscordBtn,
             })
@@ -16210,7 +16213,7 @@ function Library:CreateWindow(WindowInfo)
                 AnchorPoint = Vector2.new(0, 0.5),
                 AutomaticSize = Enum.AutomaticSize.X,
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0.5, DiscordGroupLeft + 28, 0.5, 0),
+                Position = UDim2.new(0.5, DiscordGroupLeft + DiscordIconSize + DiscordIconGap, 0.5, 0),
                 Size = UDim2.new(0, 0, 1, 0),
                 Text = "Discord",
                 TextSize = 16,
@@ -16706,8 +16709,8 @@ function Library:CreateWindow(WindowInfo)
         --// mode; the Discord pill below keeps a larger, independent padding.
         local TabsPadding = Tabs and Tabs:FindFirstChildOfClass("UIPadding")
         if TabsPadding then
-            TabsPadding.PaddingLeft = UDim.new(0, IsCompact and SidebarTabInset or (12 + Library.TabButtonsStyle.Padding))
-            TabsPadding.PaddingRight = UDim.new(0, IsCompact and SidebarTabInset or (10 + Library.TabButtonsStyle.Padding))
+            TabsPadding.PaddingLeft = UDim.new(0, IsCompact and SidebarTabInset or (8 + Library.TabButtonsStyle.Padding))
+            TabsPadding.PaddingRight = UDim.new(0, IsCompact and SidebarTabInset or (6 + Library.TabButtonsStyle.Padding))
         end
 
         TitleTextHolder.Visible = not IsCompact
@@ -16733,8 +16736,8 @@ function Library:CreateWindow(WindowInfo)
                 Button.IconSlot.Position = UDim2.new(0, 0, 0.5, 0)
                 Button.IconSlot.Size = UDim2.new(0, 20, 1, 0)
                 Button.IconSlot.SizeConstraint = Enum.SizeConstraint.RelativeYY
-                Button.Padding.PaddingLeft = UDim.new(0, 20)
-                Button.Padding.PaddingRight = UDim.new(0, 4)
+                Button.Padding.PaddingLeft = UDim.new(0, 14)
+                Button.Padding.PaddingRight = UDim.new(0, 2)
             end
 
             if Button.Icon then
@@ -16761,10 +16764,10 @@ function Library:CreateWindow(WindowInfo)
                 end
                 if Header.Icon then
                     Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
-                    Header.Icon.Position = UDim2.new(0, 6, 0.5, 0)
+                    Header.Icon.Position = UDim2.new(0, 4, 0.5, 0)
                 end
                 Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -6, 0.5, 0)
+                Header.Arrow.Position = UDim2.new(1, -4, 0.5, 0)
                 Header.Arrow.Visible = true
             else
                 if Header.Pad then
@@ -16819,10 +16822,10 @@ function Library:CreateWindow(WindowInfo)
             if IsCompact then
                 if Header.Icon then
                     Header.Icon.AnchorPoint = Vector2.new(0, 0.5)
-                    Header.Icon.Position = UDim2.new(0, 6, 0.5, 0)
+                    Header.Icon.Position = UDim2.new(0, 4, 0.5, 0)
                 end
                 Header.Arrow.AnchorPoint = Vector2.new(1, 0.5)
-                Header.Arrow.Position = UDim2.new(1, -6, 0.5, 0)
+                Header.Arrow.Position = UDim2.new(1, -4, 0.5, 0)
                 Header.Arrow.Visible = true
             else
                 if Header.Icon then
@@ -17026,10 +17029,10 @@ function Library:CreateWindow(WindowInfo)
                 HeaderPad.PaddingRight = UDim.new(0, 0)
                 if SectionIconImg then
                     SectionIconImg.AnchorPoint = Vector2.new(0, 0.5)
-                    SectionIconImg.Position = UDim2.new(0, 6, 0.5, 0) -- Icon on the Left
+                    SectionIconImg.Position = UDim2.new(0, 4, 0.5, 0) -- Icon on the Left
                 end
                 ArrowImg.AnchorPoint = Vector2.new(1, 0.5)
-                ArrowImg.Position = UDim2.new(1, -6, 0.5, 0) -- Arrow on the Right
+                ArrowImg.Position = UDim2.new(1, -4, 0.5, 0) -- Arrow on the Right
                 ArrowImg.Visible = true
             else
                 HeaderPad.PaddingLeft = UDim.new(0, 10)
